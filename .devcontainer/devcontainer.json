@@ -38,7 +38,7 @@
 	// "remoteUser": "vscode"
 
 	"remoteEnv": {"PYTHONPATH": "${containerEnv:PATH}:/workspaces/pytrade/src",
-		     "DATAHOME": "${localEnv:DATAHOME"},
+		     "DATAHOME": "${localEnv:DATAHOME}"},
 
 	"settings": { 
 		"python.linting.enabled": true,
