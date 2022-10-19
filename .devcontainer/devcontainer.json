@@ -36,7 +36,8 @@
 	// Uncomment to connect as a non-root user if you've added one. See https://aka.ms/vscode-remote/containers/non-root.
 	// "remoteUser": "vscode"
 
-	"remoteEnv": {"PYTHONPATH": "${containerEnv:PATH}:/workspaces/pytrade/src"},
+	"remoteEnv": {"PYTHONPATH": "${containerEnv:PATH}:/workspaces/pytrade/src",
+		     "DATAHOME": "${localEnv:DATAHOME"},
 
 	"settings": { 
 		"python.linting.enabled": true,
