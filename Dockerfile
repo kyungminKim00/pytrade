@@ -1,6 +1,5 @@
 # Rapids + Torch images (cuda 11.2, cudnn8.1)
 FROM ubuntu:18.04
-FROM python:alpine3.16
 # FROM rapidsai/rapidsai-core:22.08-cuda11.2-runtime-ubuntu18.04-py3.9
 # ENV DEBIAN_FRONTEND noninteractive
 # RUN mkdir /dev_env
@@ -15,7 +14,7 @@ RUN apt-get install -y git
 # RUN apt-get install -y vim-nox
 # RUN apt-get install -y tree
 # RUN apt-get autoremove -y
-RUN python3 -m pip install --upgrade pip
+# RUN python3 -m pip install --upgrade pip
 # RUN pip3 install --no-cache-dir -r /dev_env/requirements.txt
 # RUN pip3 install --no-cache-dir -r /dev_env/ci_requirements.txt
 # RUN pip3 install torch --extra-index-url https://download.pytorch.org/whl/cu112
