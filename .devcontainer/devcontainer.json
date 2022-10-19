@@ -11,7 +11,7 @@
 	"dockerFile": "../Dockerfile",
 		
 	// Enable gpu
-	// i.e. wsl -> \\wsl$\Ubuntu-18.04\home\kmkim\dataset\ ubuntu-> /home/kmkim/dataset/
+	// i.e. wsl -> c:\Ubuntu_share\dataset\ ubuntu-> /home/kmkim/dataset/
 	"runArgs": [
 		"--gpus",
 		"all",
