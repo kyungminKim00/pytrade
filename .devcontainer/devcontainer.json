@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
 // https://github.com/microsoft/vscode-dev-containers/tree/v0.245.0/containers/docker-existing-dockerfile
 {
-	"name": "pytrade-rapids",
+	"name": "pytrade",
 
 
 	// Sets the run context to one level up instead of the .devcontainer folder.
@@ -22,19 +22,19 @@
 	// "forwardPorts": [6006],
 
 	// Uncomment the next line to run commands after the container is created - for example installing curl.
-	"postCreateCommand": "git config --global --add safe.directory /workspaces/pytrade-rapids",
+	"postCreateCommand": "git config --global --add safe.directory /workspaces/pytrade",
 
 	// Uncomment when using a ptrace-based debugger like C++, Go, and Rust
 	// "runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined" ],
 
 	// Uncomment to use the Docker CLI from inside the container. See https://aka.ms/vscode-remote/samples/docker-from-docker.
-	// "mounts": [ "${localEnv:HOME}${localEnv:USERPROFILE}/dataset/pytrade-rapids,target=/workspaces/pytrade-rapids/local_data" ],
-	"mounts": [ "${localEnv:DATAHOME}/pytrade-rapids, target=/workspaces/pytrade-rapids/local_data" ],
+	// "mounts": [ "${localEnv:HOME}${localEnv:USERPROFILE}/dataset/pytrade,target=/workspaces/pytrade/local_data" ],
+	"mounts": [ "${localEnv:DATAHOME}/pytrade, target=/workspaces/pytrade/local_data" ],
 
 	// Uncomment to connect as a non-root user if you've added one. See https://aka.ms/vscode-remote/containers/non-root.
 	// "remoteUser": "vscode"
 
-	"remoteEnv": {"PYTHONPATH": "${containerEnv:PATH}:/workspaces/pytrade-rapids/src"},
+	"remoteEnv": {"PYTHONPATH": "${containerEnv:PATH}:/workspaces/pytrade/src"},
 
 	"settings": { 
 		"python.linting.enabled": true,
