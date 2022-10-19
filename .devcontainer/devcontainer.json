@@ -13,7 +13,9 @@
 	// Enable gpu
 	"runArgs": [
 		"--gpus",
-		"all"
+		"all",
+		"-v",
+		"${localEnv:DATAHOME}/pytrade:/workspaces/pytrade/local_data"
 		],
 
 	
@@ -29,7 +31,7 @@
 
 	// Uncomment to use the Docker CLI from inside the container. See https://aka.ms/vscode-remote/samples/docker-from-docker.
 	// "mounts": [ "source=${localEnv:HOME}${localEnv:USERPROFILE}/dataset/pytrade,target=/workspaces/pytrade/local_data" ],
-	"mounts": [ "source=${localEnv:DATAHOME}/pytrade, target=/workspaces/pytrade/local_data, type=bind, consistency=cached"],
+	// "mounts": [ "source=${localEnv:DATAHOME}/pytrade, target=/workspaces/pytrade/local_data, type=bind, consistency=cached"],
 
 	// Uncomment to connect as a non-root user if you've added one. See https://aka.ms/vscode-remote/containers/non-root.
 	// "remoteUser": "vscode"
