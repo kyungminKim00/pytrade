@@ -5,7 +5,7 @@ FROM ubuntu:18.04
 # RUN mkdir /dev_env
 # WORKDIR /dev_env
 # COPY . .
-# RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl
 # RUN apt-get install -y --no-install-recommends apt-utils
 # RUN apt-get install --yes --no-install-recommends libcudnn8=8.1.0.77-1+cuda11.2
 RUN apt-get install -y git
