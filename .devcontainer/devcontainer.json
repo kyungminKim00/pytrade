@@ -12,16 +12,12 @@
 		
 	// Enable gpu
 	// i.e. wsl -> c:\Ubuntu_share\dataset\ ubuntu-> /home/kmkim/dataset/
-	// "runArgs": [
-	// 	"--gpus",
-	// 	"all",
-	// 	"-v",
-	// 	"${localEnv:DATAHOME}pytrade:/workspaces/pytrade/local_data"
-	// 	],
 	"runArgs": [
 		"--gpus",
-		"all"],
-
+		"all",
+		"-v",
+		"${localEnv:DATAHOME}pytrade:/workspaces/pytrade/local_data"
+		],
 	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [8888, 8787, 8786],
@@ -35,7 +31,7 @@
 
 	// Uncomment to use the Docker CLI from inside the container. See https://aka.ms/vscode-remote/samples/docker-from-docker.
 	// mounts does not work
-	"mounts": [ "source=${localEnv:DATAHOME}pytrade, target=/workspaces/pytrade/local_data, type=bind, consistency=cached"],
+	// "mounts": [ "source=${localEnv:DATAHOME}pytrade, target=/workspaces/pytrade/local_data, type=bind, consistency=cached"],
 
 	// Uncomment to connect as a non-root user if you've added one. See https://aka.ms/vscode-remote/containers/non-root.
 	// "remoteUser": "vscode"
