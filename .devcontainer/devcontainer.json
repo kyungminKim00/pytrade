@@ -28,7 +28,8 @@
 	// "runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined" ],
 
 	// Uncomment to use the Docker CLI from inside the container. See https://aka.ms/vscode-remote/samples/docker-from-docker.
-	"mounts": [ "${localEnv:HOME}${localEnv:USERPROFILE}/dataset/pytrade-rapids,target=/workspaces/pytrade-rapids/local_data" ],
+	// "mounts": [ "${localEnv:HOME}${localEnv:USERPROFILE}/dataset/pytrade-rapids,target=/workspaces/pytrade-rapids/local_data" ],
+	"mounts": [ "/home/kmkim/dataset/pytrade-rapids, target=/workspaces/pytrade-rapids/local_data" ],
 
 	// Uncomment to connect as a non-root user if you've added one. See https://aka.ms/vscode-remote/containers/non-root.
 	// "remoteUser": "vscode"
