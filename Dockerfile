@@ -1,4 +1,5 @@
 # Rapids + Torch images (cuda 11.2, cudnn8.1)
+FROM ubuntu:18.04
 FROM python:alpine3.16
 # FROM rapidsai/rapidsai-core:22.08-cuda11.2-runtime-ubuntu18.04-py3.9
 # ENV DEBIAN_FRONTEND noninteractive
