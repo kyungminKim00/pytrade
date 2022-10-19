@@ -15,7 +15,7 @@
 		"--gpus",
 		"all",
 		"-v",
-		"${localEnv:DATAHOME}/pytrade/test.txt:/workspaces/pytrade/local_data/test.txt"
+		"${localEnv:DATAHOME}/pytrade:/workspaces/pytrade/local_data"
 		],
 
 	
