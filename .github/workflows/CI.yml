@@ -4,23 +4,23 @@ name: CI
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "develop" branch
+  # Triggers the workflow on push or pull request events but only for the "master" branch
   push:
-    branches: ["main"]
+    branches: ["master"]
   pull_request:
-    branches: ["main"]
+    branches: ["master"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "pytest"
-  pytest:
+  # This workflow contains a single job called "ci_action"
+  ci_action:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     env:
-      Greeting: Hello
+      PYTHONPATH: ./src
     strategy:
       matrix:
         python-version: ["3.9"]
@@ -42,7 +42,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r ./ci_requirements.txt
-          pip install -r ./requirements.txt
+          pip install -r ./.github/workflows/gitaction_requirements.txt
       # Runs a set of commands using the runners shell
       - name: Run a pytest
         run: |
