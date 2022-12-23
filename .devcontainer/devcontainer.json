@@ -96,6 +96,8 @@
 		"ms-toolsai.jupyter",
 		"GrapeCity.gc-excelviewer",
 		"tabnine.tabnine-vscode",
+		"formulahendry.code-runner",
+		"tabnine.tabnine-vscode",
 		"formulahendry.code-runner"
 		]
 	
