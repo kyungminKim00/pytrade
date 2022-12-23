@@ -82,8 +82,8 @@
 			"editor.tabSize": 4,
 			"github.gitProtocol": "ssh",
 			"files.autoSave": "onFocusChange",
-			"python.analysis.inlayHints.functionReturnTypes": true,
-			"python.analysis.inlayHints.variableTypes": true
+			"python.analysis.inlayHints.functionReturnTypes": false,
+			"python.analysis.inlayHints.variableTypes": false
         
 	},
 
@@ -94,7 +94,9 @@
 		"magicstack.MagicPython",
 		"msrvida.vscode-sanddance",
 		"ms-toolsai.jupyter",
-		"GrapeCity.gc-excelviewer"
+		"GrapeCity.gc-excelviewer",
+		"tabnine.tabnine-vscode",
+		"formulahendry.code-runner"
 		]
 	
 }
