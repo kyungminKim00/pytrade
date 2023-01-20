@@ -102,7 +102,7 @@ def mp_gen_candles(values: np, max_time: int, sub_window_size: int) -> np:
 class RawDataReader:
     def __init__(
         self,
-        raw_filename_min: str = "./local_daat/raw/dax_tm3.csv",
+        raw_filename_min: str = "./src/local_data/raw/dax_tm3.csv",
         params: Dict[str, int] = {"candle_size": [1, 3, 5, 15], "w_size": [9, 50, 100]},
     ) -> None:
         # init ray

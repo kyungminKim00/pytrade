@@ -16,8 +16,8 @@ if __name__ == "__main__":
 
     # KOSPI   시간봉
     # data = yf.download(tickers=ticker, period="max", interval="1h")
-    # pd.DataFrame(data).to_csv("./local_daat/raw/KS11_1h.csv")
+    # pd.DataFrame(data).to_csv("./src/local_data/raw/KS11_1h.csv")
 
     # Dax 일봉
     data = yf.download(tickers=ticker, start="2014-01-01", interval="1d")
-    pd.DataFrame(data).to_csv("./local_daat/raw/dax_td1.csv")
+    pd.DataFrame(data).to_csv("./src/local_data/raw/dax_td1.csv")

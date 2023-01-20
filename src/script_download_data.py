@@ -33,15 +33,15 @@ if __name__ == "__main__":
     # # KOSPI 시간봉
     # ticker = "^KS11"
     # data = yf.download(tickers=ticker, period="max", interval="1h")
-    # pd.DataFrame(data).to_csv("./local_daat/raw/kospi_1h.csv")
+    # pd.DataFrame(data).to_csv("./src/local_data/raw/kospi_1h.csv")
 
     # Dax 일봉
     ticker = "^GDAXI"
     data = yf.download(tickers=ticker, start="2010-01-01", interval="1d")
-    pd.DataFrame(data).to_csv("./local_daat/raw/dax_td1.csv")
+    pd.DataFrame(data).to_csv("./src/local_data/raw/dax_td1.csv")
 
     # # Demo Data 일봉 / close
     # ticker = ["^GSPC", "^KS11", "^TNX", "^IXIC", "^GDAXI", "^HSI", "^N225", "gc=F", "SI=F", "HG=F", "PL=F", "CL=F", "ZS=F", "QA=F", "RB=F", "NG=F", "ZC=F", "ZW=F", "DX=F"]
     # data = yf.download(tickers=ticker, start="1998-05-01", interval="1d")
     # data = data["Close"]
-    # pd.DataFrame(data).to_csv(f"./local_daat/raw/tt/demo_td1.csv")
+    # pd.DataFrame(data).to_csv(f"./src/local_data/raw/tt/demo_td1.csv")

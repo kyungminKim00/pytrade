@@ -100,24 +100,24 @@ class Agent(ENV):
 
 if __name__ == "__main__":
     train_agent = Agent(
-        raw_filename_min="./local_daat/raw/dax_tm3.csv",
-        pivot_filename_day="./local_daat/intermediate/dax_intermediate_pivots.csv",
+        raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+        pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
         mode="train",
     )
     train_agent.next()
 
     validation_agent = Agent(
-        raw_filename_min="./local_daat/raw/dax_tm3.csv",
-        pivot_filename_day="./local_daat/intermediate/dax_intermediate_pivots.csv",
+        raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+        pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
         mode="validation",
     )
     validation_agent.next()
 
     inference_agent = Agent(
-        raw_filename_min="./local_daat/raw/dax_tm3.csv",
-        pivot_filename_day="./local_daat/intermediate/dax_intermediate_pivots.csv",
+        raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+        pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
         mode="inference",
     )
     inference_agent.next()
 
-    # agent.analyse_data_to_csv("./local_daat/intermediate/dax_anayse_data.csv")
+    # agent.analyse_data_to_csv("./src/local_data/intermediate/dax_anayse_data.csv")
