@@ -132,7 +132,11 @@ class RawDataReader:
         time = time.str[-4:]
         r_pd["hours"] = time.str[:-2]
         r_pd["mins"] = time.str[-2:]
+        
+        r_pd["datetimes"] = pd.to_datetime(r_pd["date"] + " " + r_pd["hours"] +  r_pd["mins"])
 
+        # data["date"].dt.strftime("%m/%d/%Y")
+        
         # 리파인 raw 데이터 이평 추가
         r_pd = self._moving_averages(r_pd)
 
@@ -140,7 +144,7 @@ class RawDataReader:
         r_pd = self._calibrate_min(r_pd)
 
         # 분봉 데이터 생성
-        r_pd = self._gen_candles(r_pd)
+        r_pd = self._gen_candles2(r_pd)
 
         # 로그 변환
         r_pd = self._log_transformation(r_pd)
@@ -148,6 +152,36 @@ class RawDataReader:
         return r_pd
 
     def _gen_candles(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+        values = r_pd[["open", "high", "low", "close"]].values
+
+        max_time = values.shape[0]
+        res = ray.get(
+            [
+                mp_gen_candles.remote(values, max_time, sub_window_size)
+                for sub_window_size in self.candle_size[1:]
+            ]
+        )
+        for k, v in res:
+            r_pd = pd.concat(
+                [
+                    r_pd,
+                    pd.DataFrame(
+                        data=v,
+                        columns=[f"{k}_open", f"{k}_high", f"{k}_low", f"{k}_close"],
+                        index=r_pd.index,
+                    ),
+                ],
+                axis=1,
+                join="inner",
+            )
+        print("Gen Candles: Done")
+        return r_pd
+    
+    def _gen_candles2(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+        start_date = r_pd.iloc[0]["datetimes"]
+        end_date = r_pd.iloc[-1]["datetimes"]
+        
+        key_3m = pd.date_range(start=start_date, end=end_date, freq="3min")
         values = r_pd[["open", "high", "low", "close"]].values
 
         max_time = values.shape[0]
