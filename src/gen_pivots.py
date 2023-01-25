@@ -24,6 +24,37 @@ class Aggregator:
         self.max_search_candidate_prices_fix = 60
 
         self.maginot_bins = [10, 20, 50]
+        """_summary_
+        일봉 bin size = [10, 20, 50]
+        일별로 현재 보아야하는 상위/하위 마지노선을 산출하고 저장 한다
+            1.  (중요 가격산출) 일봉  bin size 샘플 중,  
+                if 최고가 - 종가 > abs(최저가 - 종가):
+                    중요가격 = 최고가
+                else:
+                    중요가격 = 최저가
+                => 일봉의 시,고.저.종 중 최고가와 최저가중 하나를 봉의 중요가격으로 선택 하는 로직 (일봉  bin size=중요가격 bin size)
+            2. (중요가격 가중치 산출) 
+                1. 중요가격들의 최저가와 최고가를 100분위로 100개의 마디를 생성
+                2. 100개의 마디내에 거래되는 거래량의 합을 각 마디의 가중치로 계산 함
+            3.  (lower_miginot & upper_miginot 설정)
+                lower_miginot <- 현재 종가 보다 낮은 가격 중 중요가격 가중치가 가장 높은 마디가격
+                upper_miginot <- 현재 종가 보다 높은 가격 중 중요가격 가중치가 가장 높은 마디가격
+                lower_miginot_stack <- lower_miginot을 쌓아 감
+                upper_miginot_stack <- upper_miginot을 쌓아 감
+                base_lower_miginot <- lower_miginot_stack 의 최근 20개 중 가중치가 가장 높은 마디
+                base_upper_miginot <- upper_miginot_stack 의 최근 20개 중 가중치가 가장 높은 마디
+            최종
+            "10_lower_maginot",
+                    "10_upper_maginot",
+                    "20_lower_maginot",
+                    "20_upper_maginot",
+                    "50_lower_maginot",
+                    "50_upper_maginot",
+            산출
+            4. 각 마지노 가격의 로그 변환하여 데이터로 저장
+            5. dax_intermediate_pivots.csv 로 저장
+                
+        """
         for m_bin in self.maginot_bins:
             self.upper_miginot_stack, self.lower_miginot_stack = [], []
             idx_pivot = []
@@ -51,7 +82,11 @@ class Aggregator:
 
         # drop null and convert formatting
         self.data = self.data.dropna(axis=0)
+
+        # 구간별 스케일은 로그 수익률로 정규화해서 쓰기로 함
         self.data = self._log_transformation(self.data)
+
+        # 데이터 구조를 맞추기 위해 컬럼 이름 변경
         self.pd_formatting()
 
     def pd_formatting(self) -> None:
@@ -155,16 +190,20 @@ class Aggregator:
     def quntising_price_scoring(self, prices: np.array) -> np.array:
         # quntising and price scoring
         price_scoring = []
-        percentile = np.percentile(
-            prices[:, 0], np.arange(100), interpolation="nearest"
-        )
 
+        # method 1.
+        # percentile = np.percentile(
+        #     prices[:, 0], np.arange(100), interpolation="nearest"
+        # )
+
+        # method 2.
         percentile = np.arange(
             np.min(prices[:, 0]),
             np.max(prices[:, 0]),
             (np.max(prices[:, 0]) - np.min(prices[:, 0])) * self.omega_fix,
         )
         percentile[-1] = np.max(prices[:, 0])
+
         # for idx in range(len(percentile)):
         for idx, _ in enumerate(percentile):
             if idx == 0:
