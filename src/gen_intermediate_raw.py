@@ -6,6 +6,8 @@ import pandas as pd
 import psutil
 import ray
 
+from util import get_min_range
+
 sensingval_col = [
     "open",
     "high",
@@ -36,6 +38,36 @@ def mp_moving_averages(values: np, w_size: int = None, candle_size: int = None) 
     return f"candle{str(candle_size)}_ma{str(w_size)}_log", np.log(
         bn.move_mean(values, window=w_size * candle_size)
     )
+
+
+def mp_gen_candles2(
+    partial_pd: pd.DataFrame,
+    sub_window_size: int,
+    cursor: int,
+    min_range: Dict[int, int],
+) -> np:
+    partial_pd_idxs = partial_pd.index
+
+    last_cursor = partial_pd_idxs[-1]
+    x_mins = int(partial_pd.loc[last_cursor]["mins"])
+    for k, v in min_range.items():
+        if x_mins in v:
+            involved_timespan = v
+
+    x_mins = partial_pd.loc[last_cursor]["close"]
+    partial_pd
+    # find start cursor
+
+    #  last_datetimes = pd.to_datetime(partial_pd["date"] + " " + partial_pd["hours"] +  partial_pd["mins"])
+
+    #  close_prcie = partial_pd["close"][-1]
+
+    # start_date = r_pd.iloc[0]["datetimes"]
+    # end_date = r_pd.iloc[-1]["datetimes"]
+
+    # key_3m = pd.date_range(start=start_date, end=end_date, freq="3min")
+    # values = r_pd[["open", "high", "low", "close"]].values
+    return None
 
 
 @ray.remote
@@ -132,11 +164,9 @@ class RawDataReader:
         time = time.str[-4:]
         r_pd["hours"] = time.str[:-2]
         r_pd["mins"] = time.str[-2:]
-        
-        r_pd["datetimes"] = pd.to_datetime(r_pd["date"] + " " + r_pd["hours"] +  r_pd["mins"])
 
         # data["date"].dt.strftime("%m/%d/%Y")
-        
+
         # 리파인 raw 데이터 이평 추가
         r_pd = self._moving_averages(r_pd)
 
@@ -176,18 +206,44 @@ class RawDataReader:
             )
         print("Gen Candles: Done")
         return r_pd
-    
+
     def _gen_candles2(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        start_date = r_pd.iloc[0]["datetimes"]
-        end_date = r_pd.iloc[-1]["datetimes"]
-        
+        # r_pd["datetimes"] = pd.to_datetime(r_pd["date"] + " " + r_pd["hours"] + r_pd["mins"])
+
+        # aa = r_pd[["datetimes", "open", "high", "low", "close"]]
+        # aa=aa.set_index("datetimes")
+        # mins_3 = aa.resample(rule="3min").asfreq()
+        # mins_3["low"] = aa.resample(rule="3min").min()["low"].values
+        # mins_3["high"] = aa.resample(rule="3min").max()["high"].values
+        # mins_3.reset_index(inplace=True)
+
+        # r_pd.resamples(on="datetimes", rule="3min")["low"]
+        # start_date = r_pd.iloc[0]["datetimes"]
+        # end_date = r_pd.iloc[-1]["datetimes"]
+
+        for candle_size in self.candle_size[1:]:
+            min_range = get_min_range(candle_size)
+
+            # 요기 에다가 추후에 ray 적용
+            for cursor in list(r_pd.index[candle_size:]):
+                mp_gen_candles2(
+                    r_pd.loc[cursor - candle_size : cursor],
+                    candle_size,
+                    cursor,
+                    min_range,
+                )  # cursor 포함되는 데이터여야 함 (인덱스 이므로)
+
         key_3m = pd.date_range(start=start_date, end=end_date, freq="3min")
         values = r_pd[["open", "high", "low", "close"]].values
 
-        max_time = values.shape[0]
+        aa = [
+            mp_gen_candles2(r_pd, sub_window_size)
+            for sub_window_size in self.candle_size[1:]
+        ]
+
         res = ray.get(
             [
-                mp_gen_candles.remote(values, max_time, sub_window_size)
+                mp_gen_candles2(r_pd, sub_window_size)
                 for sub_window_size in self.candle_size[1:]
             ]
         )

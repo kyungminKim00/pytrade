@@ -33,6 +33,17 @@ import glob
 import shutil
 
 
+def get_min_range(interval: int) -> Dict[int, int]:
+    min_range = {}
+    mins = np.arange(0, 61, 1)[::interval]
+    for idx, val in enumerate(mins):
+        if val == 0:
+            pass
+        else:
+            min_range[idx] = [mins[idx - 1], mins[idx]]
+    return min_range
+
+
 def log(
     filename: str = None, log_dict: Dict[str, Any] = None, _bool: bool = True
 ) -> None:
