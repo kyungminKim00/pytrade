@@ -46,18 +46,37 @@ def mp_gen_candles2(
     cursor: int,
     min_range: Dict[int, int],
 ) -> np:
+    candle_time_interval = None
+    first_cursor = None
+    last_cursor = None
+    
+    
     partial_pd_idxs = partial_pd.index
 
     last_cursor = partial_pd_idxs[-1]
     x_mins = int(partial_pd.loc[last_cursor]["mins"])
+    
+    
     for k, v in min_range.items():
-        if x_mins in v:
-            involved_timespan = v
-
-    x_mins = partial_pd.loc[last_cursor]["close"]
-    partial_pd
+        if v[0]<= x_mins < v[1]:
+            candle_time_interval = v
+    assert candle_time_interval is not None, "Data Errors!!!"
+    
+    
+    for t_idx in partial_pd_idxs:
+        x_mins = int(partial_pd.loc[t_idx]["mins"])
+        if candle_time_interval[0]<= x_mins < candle_time_interval[1]:
+            first_cursor = t_idx
+            break
+    assert first_cursor is not None, "Data Errors!!!"
+    
+    candle_open = partial_pd.loc[first_cursor]["open"]
+    candle_high = np.max(partial_pd.loc[first_cursor:].values())
+    candle_low = np.min(partial_pd.loc[first_cursor:].values())
+    candle_close = partial_pd.loc[last_cursor]["close"]
+    
     # find start cursor
-
+    
     #  last_datetimes = pd.to_datetime(partial_pd["date"] + " " + partial_pd["hours"] +  partial_pd["mins"])
 
     #  close_prcie = partial_pd["close"][-1]
@@ -233,7 +252,7 @@ class RawDataReader:
                     min_range,
                 )  # cursor 포함되는 데이터여야 함 (인덱스 이므로)
 
-        key_3m = pd.date_range(start=start_date, end=end_date, freq="3min")
+        # key_3m = pd.date_range(start=start_date, end=end_date, freq="3min")
         values = r_pd[["open", "high", "low", "close"]].values
 
         aa = [
