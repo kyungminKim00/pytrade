@@ -1,8 +1,10 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import bottleneck as bn
+
+# import pandas as pd
+import modin.pandas as pd
 import numpy as np
-import pandas as pd
 import psutil
 import ray
 
@@ -40,53 +42,54 @@ def mp_moving_averages(values: np, w_size: int = None, candle_size: int = None) 
     )
 
 
+@ray.remote
 def mp_gen_candles2(
     partial_pd: pd.DataFrame,
-    sub_window_size: int,
-    cursor: int,
-    min_range: Dict[int, int],
-) -> np:
+    min_range: List,
+) -> List:
     candle_time_interval = None
     first_cursor = None
     last_cursor = None
-    
-    
-    partial_pd_idxs = partial_pd.index
 
+    # declare last_cursor
+    partial_pd_idxs = partial_pd.index
+    # partial_pd_idxs = sorted(list(partial_pd.keys()))
     last_cursor = partial_pd_idxs[-1]
+
+    # # find candle_time_interval
     x_mins = int(partial_pd.loc[last_cursor]["mins"])
-    
-    
-    for k, v in min_range.items():
-        if v[0]<= x_mins < v[1]:
+    # x_mins = int(partial_pd[last_cursor]["mins"])
+
+    for v in min_range:
+        if v[0] <= x_mins < v[1]:
             candle_time_interval = v
     assert candle_time_interval is not None, "Data Errors!!!"
-    
-    
+
+    # find first_cursor
     for t_idx in partial_pd_idxs:
         x_mins = int(partial_pd.loc[t_idx]["mins"])
-        if candle_time_interval[0]<= x_mins < candle_time_interval[1]:
+        # x_mins = int(partial_pd[last_cursor]["mins"])
+        if candle_time_interval[0] <= x_mins < candle_time_interval[1]:
             first_cursor = t_idx
             break
     assert first_cursor is not None, "Data Errors!!!"
-    
+
+    return ohlc_record(partial_pd, first_cursor, last_cursor)
+
+
+def ohlc_record(partial_pd, first_cursor, last_cursor):
     candle_open = partial_pd.loc[first_cursor]["open"]
-    candle_high = np.max(partial_pd.loc[first_cursor:].values())
-    candle_low = np.min(partial_pd.loc[first_cursor:].values())
+    candle_high = partial_pd.loc[first_cursor:]["high"].max()
+    candle_low = partial_pd.loc[first_cursor:]["low"].min()
     candle_close = partial_pd.loc[last_cursor]["close"]
-    
-    # find start cursor
-    
-    #  last_datetimes = pd.to_datetime(partial_pd["date"] + " " + partial_pd["hours"] +  partial_pd["mins"])
 
-    #  close_prcie = partial_pd["close"][-1]
+    # candle_open = partial_pd[first_cursor]["open"]
+    # candle_high = partial_pd[first_cursor:]["high"].max()
+    # candle_low = partial_pd[first_cursor:]["low"].min()
+    # candle_close = partial_pd[last_cursor]["close"]
 
-    # start_date = r_pd.iloc[0]["datetimes"]
-    # end_date = r_pd.iloc[-1]["datetimes"]
-
-    # key_3m = pd.date_range(start=start_date, end=end_date, freq="3min")
-    # values = r_pd[["open", "high", "low", "close"]].values
-    return None
+    data = [last_cursor, candle_open, candle_high, candle_low, candle_close]
+    return data
 
 
 @ray.remote
@@ -241,45 +244,57 @@ class RawDataReader:
         # end_date = r_pd.iloc[-1]["datetimes"]
 
         for candle_size in self.candle_size[1:]:
-            min_range = get_min_range(candle_size)
+            min_range = list(get_min_range(candle_size).values())
 
-            # 요기 에다가 추후에 ray 적용
-            for cursor in list(r_pd.index[candle_size:]):
-                mp_gen_candles2(
-                    r_pd.loc[cursor - candle_size : cursor],
-                    candle_size,
-                    cursor,
-                    min_range,
+            # 3/5/15 분봉의 시고저종 산출
+            res = ray.get(
+                [
+                    mp_gen_candles2.remote(
+                        r_pd.loc[cursor - candle_size : cursor],
+                        min_range,
+                    )
+                ]
+                for cursor in list(
+                    r_pd.index[candle_size:]
                 )  # cursor 포함되는 데이터여야 함 (인덱스 이므로)
+            )
+            res = np.array(res)
 
-        # key_3m = pd.date_range(start=start_date, end=end_date, freq="3min")
-        values = r_pd[["open", "high", "low", "close"]].values
+            # res = ray.get(
+            #     [
+            #         mp_gen_candles2.remote(
+            #             r_pd.loc[cursor - candle_size : cursor].to_dict("index"),
+            #             min_range,
+            #         )
+            #     ]
+            #     for cursor in list(
+            #         r_pd.index[candle_size:]
+            #     )  # cursor 포함되는 데이터여야 함 (인덱스 이므로)
+            # )
+            # res = np.array(res)
 
-        aa = [
-            mp_gen_candles2(r_pd, sub_window_size)
-            for sub_window_size in self.candle_size[1:]
-        ]
-
-        res = ray.get(
-            [
-                mp_gen_candles2(r_pd, sub_window_size)
-                for sub_window_size in self.candle_size[1:]
-            ]
-        )
-        for k, v in res:
+            # 계산된 3/5/15 분봉의 시고저종을 원본데이터 프레임에 추가
+            identifier = f"{candle_size}mins"
+            res_idx = res[:, 0]
+            res_ohlc = res[:, 1:]
             r_pd = pd.concat(
                 [
                     r_pd,
                     pd.DataFrame(
-                        data=v,
-                        columns=[f"{k}_open", f"{k}_high", f"{k}_low", f"{k}_close"],
-                        index=r_pd.index,
+                        data=res_ohlc,
+                        columns=[
+                            f"{identifier}_open",
+                            f"{identifier}_high",
+                            f"{identifier}_low",
+                            f"{identifier}_close",
+                        ],
+                        index=res_idx,
                     ),
                 ],
                 axis=1,
                 join="inner",
             )
-        print("Gen Candles: Done")
+
         return r_pd
 
     def _log_transformation(self, r_pd: pd.DataFrame) -> pd.DataFrame:

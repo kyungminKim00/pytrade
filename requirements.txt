@@ -30,3 +30,4 @@ plotly
 click
 schedule
 ipykernel
+modin["ray"]==0.15.3
