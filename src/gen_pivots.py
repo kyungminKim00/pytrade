@@ -5,10 +5,9 @@ import pandas as pd
 import psutil
 import ray
 
-
-@ray.remote
-def mp_log_transformation(values: np, col_name: str = None) -> List:
-    return f"{col_name}_log", np.log(values)
+# @ray.remote
+# def mp_log_transformation(values: np, col_name: str = None) -> List:
+#     return f"{col_name}_log", np.log(values)
 
 
 class Aggregator:
@@ -24,6 +23,7 @@ class Aggregator:
         self.max_search_candidate_prices_fix = 60
 
         self.maginot_bins = [10, 20, 50]
+
         """_summary_
         일봉 bin size = [10, 20, 50]
         일별로 현재 보아야하는 상위/하위 마지노선을 산출하고 저장 한다
@@ -51,7 +51,7 @@ class Aggregator:
                     "50_lower_maginot",
                     "50_upper_maginot",
             산출
-            4. 각 마지노 가격의 로그 변환하여 데이터로 저장
+            4. 각 마지노 가격의 로그 변환하여 데이터로 저장 (Not in use)
             5. dax_intermediate_pivots.csv 로 저장
                 
         """
@@ -83,8 +83,8 @@ class Aggregator:
         # drop null and convert formatting
         self.data = self.data.dropna(axis=0)
 
-        # 구간별 스케일은 로그 수익률로 정규화해서 쓰기로 함
-        self.data = self._log_transformation(self.data)
+        # # 구간별 스케일은 로그 수익률로 정규화해서 쓰기로 함
+        # self.data = self._log_transformation(self.data)
 
         # 데이터 구조를 맞추기 위해 컬럼 이름 변경
         self.pd_formatting()
@@ -104,25 +104,6 @@ class Aggregator:
         )
         self.data["date"] = pd.to_datetime(self.data.date)
         self.data["date"] = self.data["date"].dt.strftime("%m/%d/%Y")
-
-    def _log_transformation(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        res = ray.get(
-            [
-                mp_log_transformation.remote(r_pd[col_name].values, col_name)
-                for col_name in [
-                    "10_lower_maginot",
-                    "10_upper_maginot",
-                    "20_lower_maginot",
-                    "20_upper_maginot",
-                    "50_lower_maginot",
-                    "50_upper_maginot",
-                ]
-            ]
-        )
-        for k, v in res:
-            r_pd[k] = v
-        print("Log Transformation: Done")
-        return r_pd
 
     def historical_g_maginot(self, stack: List) -> List[float]:
         miginot = []
@@ -271,3 +252,23 @@ class Aggregator:
             )
 
         return base_lower_maginot, base_upper_maginot
+
+    # # not in use
+    # def _log_transformation(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+    #     res = ray.get(
+    #         [
+    #             mp_log_transformation.remote(r_pd[col_name].values, col_name)
+    #             for col_name in [
+    #                 "10_lower_maginot",
+    #                 "10_upper_maginot",
+    #                 "20_lower_maginot",
+    #                 "20_upper_maginot",
+    #                 "50_lower_maginot",
+    #                 "50_upper_maginot",
+    #             ]
+    #         ]
+    #     )
+    #     for k, v in res:
+    #         r_pd[k] = v
+    #     print("Log Transformation: Done")
+    #     return r_pd

@@ -8,7 +8,7 @@ import numpy as np
 import psutil
 import ray
 
-from util import get_min_range
+from util import get_min_range, print_c
 
 sensingval_col = [
     "open",
@@ -30,15 +30,15 @@ sensingval_col = [
 ]
 
 
-@ray.remote
-def mp_log_transformation(values: np, col_name: str = None) -> List:
-    return f"{col_name}_log", np.log(values)
+# @ray.remote
+# def mp_log_transformation(values: np, col_name: str = None) -> List:
+#     return f"{col_name}_log", np.log(values)
 
 
 @ray.remote
 def mp_moving_averages(values: np, w_size: int = None, candle_size: int = None) -> List:
-    return f"candle{str(candle_size)}_ma{str(w_size)}_log", np.log(
-        bn.move_mean(values, window=w_size * candle_size)
+    return f"candle{str(candle_size)}_ma{str(w_size)}", bn.move_mean(
+        values, window=w_size * candle_size
     )
 
 
@@ -157,7 +157,10 @@ class RawDataReader:
     def __init__(
         self,
         raw_filename_min: str = "./src/local_data/raw/dax_tm3.csv",
-        params: Dict[str, int] = {"candle_size": [1, 3, 5, 15], "w_size": [9, 50, 100]},
+        params: Dict[str, int] = {
+            "candle_size": [1, 3, 5, 15],
+            "w_size": [9, 50, 100],
+        },
     ) -> None:
         # init ray
         ray.shutdown()
@@ -167,14 +170,13 @@ class RawDataReader:
         self.raw_filename_min = raw_filename_min
         self.candle_size = params["candle_size"]
         self.w_size = params["w_size"]
+
         self.raw = self._get_rawdata()
 
     def _get_rawdata(self) -> pd.DataFrame:
         r_pd = pd.read_csv(
             self.raw_filename_min, sep=",", dtype={"date": object, "time": object}
         )
-        # 나중에 파일형태 정해지면 소문자와 날짜 형식 지정하기.. 컬럼명 소문자, 날짜는 m/d/Y 형태로
-        # r_pd = self.pd_formatting(r_pd)
 
         # set index
         r_pd["idx"] = np.arange(r_pd.shape[0])
@@ -187,7 +189,9 @@ class RawDataReader:
         r_pd["hours"] = time.str[:-2]
         r_pd["mins"] = time.str[-2:]
 
-        # data["date"].dt.strftime("%m/%d/%Y")
+        # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
+        r_pd = r_pd[-2000:]
+        print_c("Reduce the size of raw data - Remove this section")
 
         # 리파인 raw 데이터 이평 추가
         r_pd = self._moving_averages(r_pd)
@@ -198,8 +202,8 @@ class RawDataReader:
         # 분봉 데이터 생성
         r_pd = self._gen_candles2(r_pd)
 
-        # 로그 변환
-        r_pd = self._log_transformation(r_pd)
+        # # 로그 변환
+        # r_pd = self._log_transformation(r_pd)
 
         return r_pd
 
@@ -230,19 +234,7 @@ class RawDataReader:
         return r_pd
 
     def _gen_candles2(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        # r_pd["datetimes"] = pd.to_datetime(r_pd["date"] + " " + r_pd["hours"] + r_pd["mins"])
-
-        # aa = r_pd[["datetimes", "open", "high", "low", "close"]]
-        # aa=aa.set_index("datetimes")
-        # mins_3 = aa.resample(rule="3min").asfreq()
-        # mins_3["low"] = aa.resample(rule="3min").min()["low"].values
-        # mins_3["high"] = aa.resample(rule="3min").max()["high"].values
-        # mins_3.reset_index(inplace=True)
-
-        # r_pd.resamples(on="datetimes", rule="3min")["low"]
-        # start_date = r_pd.iloc[0]["datetimes"]
-        # end_date = r_pd.iloc[-1]["datetimes"]
-
+        r_pd.to_csv("./src/local_data/raw/gen_candles_debug_source.csv")
         for candle_size in self.candle_size[1:]:
             min_range = list(get_min_range(candle_size).values())
 
@@ -253,60 +245,36 @@ class RawDataReader:
                         r_pd.loc[cursor - candle_size : cursor],
                         min_range,
                     )
+                    for cursor in list(
+                        r_pd.index[candle_size:]
+                    )  # cursor 포함되는 데이터여야 함 (인덱스 이므로)
                 ]
-                for cursor in list(
-                    r_pd.index[candle_size:]
-                )  # cursor 포함되는 데이터여야 함 (인덱스 이므로)
             )
-            res = np.array(res)
-
-            # res = ray.get(
-            #     [
-            #         mp_gen_candles2.remote(
-            #             r_pd.loc[cursor - candle_size : cursor].to_dict("index"),
-            #             min_range,
-            #         )
-            #     ]
-            #     for cursor in list(
-            #         r_pd.index[candle_size:]
-            #     )  # cursor 포함되는 데이터여야 함 (인덱스 이므로)
-            # )
-            # res = np.array(res)
 
             # 계산된 3/5/15 분봉의 시고저종을 원본데이터 프레임에 추가
             identifier = f"{candle_size}mins"
-            res_idx = res[:, 0]
-            res_ohlc = res[:, 1:]
+            res_dict = {
+                idx: {
+                    f"{identifier}_open": o,
+                    f"{identifier}_high": h,
+                    f"{identifier}_low": l,
+                    f"{identifier}_close": c,
+                }
+                for idx, o, h, l, c in res
+            }
+            res_pd = pd.DataFrame.from_dict(res_dict, orient="index")
             r_pd = pd.concat(
                 [
                     r_pd,
-                    pd.DataFrame(
-                        data=res_ohlc,
-                        columns=[
-                            f"{identifier}_open",
-                            f"{identifier}_high",
-                            f"{identifier}_low",
-                            f"{identifier}_close",
-                        ],
-                        index=res_idx,
-                    ),
+                    res_pd,
                 ],
                 axis=1,
                 join="inner",
             )
+            print(f"{identifier} 캔들이 생성 되었습니다")
 
-        return r_pd
+        r_pd.to_csv("./src/local_data/raw/gen_candles_debug_target.csv")
 
-    def _log_transformation(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        res = ray.get(
-            [
-                mp_log_transformation.remote(r_pd[col_name].values, col_name)
-                for col_name in sensingval_col
-            ]
-        )
-        for k, v in res:
-            r_pd[k] = v
-        print("Log Transformation: Done")
         return r_pd
 
     def _calibrate_min(self, r_pd: pd.DataFrame) -> pd.DataFrame:
@@ -316,6 +284,16 @@ class RawDataReader:
         return r_pd.drop(labels=range(first_index, first_00min_index), axis=0)
 
     def _moving_averages(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+        r_pd["datetime"] = pd.to_datetime(
+            r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
+        )
+
+        # case: candle_size = 5min, moving_averages = 9
+        r_pd["candle5_ma9"] = r_pd["datetime"].dt.floor("5T")
+        five_min_data = r_pd.groupby("candle5_ma9")["close"].mean()
+        five_min_moving_avg = five_min_data.rolling(window=9).mean()
+        five_min_moving_avg.plot()
+
         res = ray.get(
             [
                 mp_moving_averages.remote(r_pd["close"].values, w_size, candle_size)
@@ -345,3 +323,15 @@ class RawDataReader:
         data["date"] = pd.to_datetime(data.date)
         data["date"] = data["date"].dt.strftime("%m/%d/%Y")
         return data
+
+    # def _log_transformation(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+    #     res = ray.get(
+    #         [
+    #             mp_log_transformation.remote(r_pd[col_name].values, col_name)
+    #             for col_name in sensingval_col
+    #         ]
+    #     )
+    #     for k, v in res:
+    #         r_pd[k] = v
+    #     print("Log Transformation: Done")
+    #     return r_pd
