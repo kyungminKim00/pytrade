@@ -287,6 +287,9 @@ class RawDataReader:
             r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
         )
 
+        # # group by code
+        # https://teddylee777.github.io/pandas/pandas-groupby/
+        
         # case: candle_size = 5min, moving_averages = 9
         r_pd["candle5_ma9"] = r_pd["datetime"].dt.floor("5T")
         five_min_data = r_pd.groupby("candle5_ma9")["close"].mean()
