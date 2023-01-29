@@ -182,13 +182,12 @@ class RawDataReader:
         r_pd["idx"] = np.arange(r_pd.shape[0])
         r_pd.set_index("idx", inplace=True)
 
-        # convert the time format to 4 digits
-        # 데이터 형식 리파인
-        time = "0000" + r_pd["time"]
-        time = time.str[-4:]
-        r_pd["hours"] = time.str[:-2]
-        r_pd["mins"] = time.str[-2:]
-
+        # hours and minutes
+        r_pd["hours"] = r_pd["time"].str[:-2]
+        r_pd["mins"] = r_pd["time"].str[-2:]
+        # r_pd = r_pd.astype({"hours": int, "mins": int})
+        
+        
         # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
         r_pd = r_pd[-2000:]
         print_c("Reduce the size of raw data - Remove this section")
