@@ -187,10 +187,14 @@ class RawDataReader:
         r_pd["mins"] = r_pd["time"].str[-2:]
         # r_pd = r_pd.astype({"hours": int, "mins": int})
         
-        
         # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
         r_pd = r_pd[-2000:]
         print_c("Reduce the size of raw data - Remove this section")
+        
+        # generate datetime
+        r_pd["datetime"] = pd.to_datetime(
+            r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
+        )
 
         # 리파인 raw 데이터 이평 추가
         r_pd = self._moving_averages(r_pd)
@@ -283,28 +287,42 @@ class RawDataReader:
         return r_pd.drop(labels=range(first_index, first_00min_index), axis=0)
 
     def _moving_averages(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        r_pd["datetime"] = pd.to_datetime(
-            r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
-        )
-
         # # group by code
         # https://teddylee777.github.io/pandas/pandas-groupby/
         
         # case: candle_size = 5min, moving_averages = 9
-        r_pd["candle5_ma9"] = r_pd["datetime"].dt.floor("5T")
-        five_min_data = r_pd.groupby("candle5_ma9")["close"].mean()
-        five_min_moving_avg = five_min_data.rolling(window=9).mean()
-        five_min_moving_avg.plot()
-
-        res = ray.get(
-            [
-                mp_moving_averages.remote(r_pd["close"].values, w_size, candle_size)
-                for candle_size in self.candle_size
-                for w_size in self.w_size
-            ]
-        )
-        for k, v in res:
-            r_pd[k] = v
+        for candle_size in self.candle_size[1:]:
+            identifier = f"candle{candle_size}_datetime"
+            r_pd[identifier] = r_pd["datetime"].dt.floor(f"{candle_size}T")
+            
+            # 1 mins prices respect to the candle 
+            r_pd[f"{candle_size}mins_close"] = r_pd["close"]
+            r_pd[f"{candle_size}mins_high"] = r_pd.groupby(identifier)["high"].max()
+            r_pd[f"{candle_size}mins_low"] = r_pd.groupby(identifier)["low"].min()
+            candle_open = r_pd.groupby(identifier)["open"].apply(lambda x: x.iloc[0])
+            candle_open.name = f"{candle_size}mins_open"
+            r_pd = r_pd.join(candle_open, on=identifier, how="outer")
+            
+            for w_size in self.w_size:
+                # moving average respect to the candle
+                g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
+                data = r_pd.groupby(identifier)["close"].apply(lambda x: x.iloc[-1])
+                min_moving_avg = data.rolling(window=w_size).mean()
+                min_moving_avg.name = g_candle
+                min_moving_avg = min_moving_avg.to_frame()
+                r_pd = r_pd.join(min_moving_avg, on=identifier, how="outer")
+                
+        # # old version
+        # res = ray.get(
+        #     [
+        #         mp_moving_averages.remote(r_pd["close"].values, w_size, candle_size)
+        #         for candle_size in self.candle_size
+        #         for w_size in self.w_size
+        #     ]
+        # )
+        # for k, v in res:
+        #     r_pd[k] = v
+            
         r_pd = r_pd.dropna(axis=0)
         print("Gen MA: Done")
         return r_pd
