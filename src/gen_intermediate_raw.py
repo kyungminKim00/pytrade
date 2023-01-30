@@ -186,11 +186,11 @@ class RawDataReader:
         r_pd["hours"] = r_pd["time"].str[:-2]
         r_pd["mins"] = r_pd["time"].str[-2:]
         # r_pd = r_pd.astype({"hours": int, "mins": int})
-        
+
         # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
         r_pd = r_pd[-2000:]
         print_c("Reduce the size of raw data - Remove this section")
-        
+
         # generate datetime
         r_pd["datetime"] = pd.to_datetime(
             r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
@@ -289,26 +289,27 @@ class RawDataReader:
     def _moving_averages(self, r_pd: pd.DataFrame) -> pd.DataFrame:
         # # group by code
         # https://teddylee777.github.io/pandas/pandas-groupby/
-        
+
         # case: candle_size = 5min, moving_averages = 9
         for candle_size in self.candle_size:
             identifier = f"candle{candle_size}_datetime"
             r_pd[identifier] = r_pd["datetime"].dt.floor(f"{candle_size}T")
-            
+
             # 1 mins prices respect to the candle
-            if candle_size > 1: 
-                candle_open = r_pd.groupby(identifier)["open"].apply(lambda x: x.iloc[0])
+            if candle_size > 1:
+                candle_open = r_pd.groupby(identifier)["open"].apply(
+                    lambda x: x.iloc[0]
+                )
                 candle_high = r_pd.groupby(identifier)["high"].cummax()
                 candle_low = r_pd.groupby(identifier)["low"].cummin()
                 candle_open.name = f"{candle_size}mins_open"
                 candle_high.name = f"{candle_size}mins_high"
                 candle_low.name = f"{candle_size}mins_low"
-                
+
                 for df_price in [candle_open, candle_high, candle_low]:
                     r_pd = r_pd.join(df_price, on=identifier, how="outer")
                 r_pd[f"{candle_size}mins_close"] = r_pd["close"]
-                
-                
+
             # moving averages respect to the candle
             for w_size in self.w_size:
                 g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
@@ -317,7 +318,7 @@ class RawDataReader:
                 moving_avg.name = g_candle
                 moving_avg = moving_avg.to_frame()
                 r_pd = r_pd.join(moving_avg, on=identifier, how="outer")
-                
+
         # # old version
         # res = ray.get(
         #     [
@@ -328,7 +329,7 @@ class RawDataReader:
         # )
         # for k, v in res:
         #     r_pd[k] = v
-            
+
         r_pd = r_pd.dropna(axis=0)
         print("Gen MA: Done")
         return r_pd
