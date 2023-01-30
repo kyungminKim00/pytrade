@@ -308,6 +308,7 @@ class RawDataReader:
                     r_pd = r_pd.join(df_price, on=identifier, how="outer")
                 r_pd[f"{candle_size}mins_close"] = r_pd["close"]
                 
+                
             # moving averages respect to the candle
             for w_size in self.w_size:
                 g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
