@@ -31,6 +31,7 @@ class Agent(ENV):
             pivot_filename_day=pivot_filename_day,
             mode=mode,
         )
+
         self._previous_action = actions["NP"]  # 관측 액션: T-1 시점의 액션
         self._episode_cum_return = 0
         self._account = OrderedDict()  # validation / inference 에 활용
