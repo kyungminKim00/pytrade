@@ -291,26 +291,31 @@ class RawDataReader:
         # https://teddylee777.github.io/pandas/pandas-groupby/
         
         # case: candle_size = 5min, moving_averages = 9
-        for candle_size in self.candle_size[1:]:
+        for candle_size in self.candle_size:
             identifier = f"candle{candle_size}_datetime"
             r_pd[identifier] = r_pd["datetime"].dt.floor(f"{candle_size}T")
             
-            # 1 mins prices respect to the candle 
-            r_pd[f"{candle_size}mins_close"] = r_pd["close"]
-            r_pd[f"{candle_size}mins_high"] = r_pd.groupby(identifier)["high"].max()
-            r_pd[f"{candle_size}mins_low"] = r_pd.groupby(identifier)["low"].min()
-            candle_open = r_pd.groupby(identifier)["open"].apply(lambda x: x.iloc[0])
-            candle_open.name = f"{candle_size}mins_open"
-            r_pd = r_pd.join(candle_open, on=identifier, how="outer")
-            
+            # 1 mins prices respect to the candle
+            if candle_size > 1: 
+                candle_open = r_pd.groupby(identifier)["open"].apply(lambda x: x.iloc[0])
+                candle_high = r_pd.groupby(identifier)["high"].cummax()
+                candle_low = r_pd.groupby(identifier)["low"].cummin()
+                candle_open.name = f"{candle_size}mins_open"
+                candle_high.name = f"{candle_size}mins_high"
+                candle_low.name = f"{candle_size}mins_low"
+                
+                for df_price in [candle_open, candle_high, candle_low]:
+                    r_pd = r_pd.join(df_price, on=identifier, how="outer")
+                r_pd[f"{candle_size}mins_close"] = r_pd["close"]
+                
+            # moving averages respect to the candle
             for w_size in self.w_size:
-                # moving average respect to the candle
                 g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
                 data = r_pd.groupby(identifier)["close"].apply(lambda x: x.iloc[-1])
-                min_moving_avg = data.rolling(window=w_size).mean()
-                min_moving_avg.name = g_candle
-                min_moving_avg = min_moving_avg.to_frame()
-                r_pd = r_pd.join(min_moving_avg, on=identifier, how="outer")
+                moving_avg = data.rolling(window=w_size).mean()
+                moving_avg.name = g_candle
+                moving_avg = moving_avg.to_frame()
+                r_pd = r_pd.join(moving_avg, on=identifier, how="outer")
                 
         # # old version
         # res = ray.get(
