@@ -90,6 +90,9 @@ class ENV:
     def analyse_data_to_csv(self, outfile: str = None) -> None:
         self.analyse_data.to_csv(outfile)
 
+    def spread(final_price, init_price):
+        return pass
+    
     def _pre_process(self) -> pd.DataFrame:
         processed_data = pd.DataFrame()
         # 변수 생성
