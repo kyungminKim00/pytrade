@@ -3,7 +3,7 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import pandas as pd
+import modin.pandas as pd
 
 from env import ENV
 from util import print_c

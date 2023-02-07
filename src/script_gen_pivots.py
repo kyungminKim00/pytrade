@@ -1,4 +1,4 @@
-import pandas as pd
+import modin.pandas as pd
 
 from gen_pivots import Aggregator
 

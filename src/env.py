@@ -2,49 +2,50 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import pandas as pd
+import modin.pandas as pd
 
 from gen_intermediate_raw import RawDataReader
 from util import print_c
+from attributes import spread, diff
 
 pivot_col = [
-    "candle1_ma9_log",
-    "candle1_ma9_log",
-    "candle1_ma50_log",
-    "candle1_ma100_log",
-    "candle3_ma9_log",
-    "candle3_ma50_log",
-    "candle3_ma100_log",
-    "candle5_ma9_log",
-    "candle5_ma50_log",
-    "candle5_ma100_log",
-    "candle15_ma9_log",
-    "candle15_ma50_log",
-    "candle15_ma100_log",
-    "10_lower_maginot_log",
-    "10_upper_maginot_log",
-    "20_lower_maginot_log",
-    "20_upper_maginot_log",
-    "50_lower_maginot_log",
-    "50_upper_maginot_log",
+    "candle1_ma9",
+    "candle1_ma9",
+    "candle1_ma50",
+    "candle1_ma100",
+    "candle3_ma9",
+    "candle3_ma50",
+    "candle3_ma100",
+    "candle5_ma9",
+    "candle5_ma50",
+    "candle5_ma100",
+    "candle15_ma9",
+    "candle15_ma50",
+    "candle15_ma100",
+    "10_lower_maginot",
+    "10_upper_maginot",
+    "20_lower_maginot",
+    "20_upper_maginot",
+    "50_lower_maginot",
+    "50_upper_maginot",
 ]
 sensingval_col = [
-    "open_log",
-    "high_log",
-    "low_log",
-    "close_log",
-    "3mins_open_log",
-    "3mins_high_log",
-    "3mins_low_log",
-    "3mins_close_log",
-    "5mins_open_log",
-    "5mins_high_log",
-    "5mins_low_log",
-    "5mins_close_log",
-    "15mins_open_log",
-    "15mins_high_log",
-    "15mins_low_log",
-    "15mins_close_log",
+    "open",
+    "high",
+    "low",
+    "close",
+    "3mins_open",
+    "3mins_high",
+    "3mins_low",
+    "3mins_close",
+    "5mins_open",
+    "5mins_high",
+    "5mins_low",
+    "5mins_close",
+    "15mins_open",
+    "15mins_high",
+    "15mins_low",
+    "15mins_close",
 ]
 
 
@@ -68,12 +69,14 @@ class ENV:
         self.immutable_idx = self._splite_data()
         self.current_idx, self.eof, self.sample = None, False, None
         self.sample_set = {}
+        self.candle_size = [1, 3, 5, 15]
+        self.w_size = [9, 50, 100]
 
     def _read_analyse_data(self) -> pd.DataFrame:
         print_c("\n분봉/일봉/피봇(일봉) 데이터는 준비 되어 있어야 함!!!")
         raw_data = RawDataReader(
             raw_filename_min=self.raw_filename_min,
-            params={"candle_size": [1, 3, 5, 15], "w_size": [9, 50, 100]},
+            params={"candle_size": self.candle_size, "w_size": self.w_size},
         )
         print("Raw Data Ready: OK")
 
@@ -90,45 +93,50 @@ class ENV:
     def analyse_data_to_csv(self, outfile: str = None) -> None:
         self.analyse_data.to_csv(outfile)
 
-    def spread(final_price, init_price):
-        return pass
-    
     def _pre_process(self) -> pd.DataFrame:
         processed_data = pd.DataFrame()
-        # 변수 생성
-        for s_col in sensingval_col:
-            for p_col in pivot_col:
-                t_col = f"{s_col}_{p_col}"
-                processed_data[t_col] = pd.Series(
-                    self.analyse_data[s_col] - self.analyse_data[p_col],
-                    index=self.analyse_data.index,
+
+        # 변수 생성: (종가 - 이동평균)/이동평균
+        for candle_size in self.candle_size:
+            for w_size in self.w_size:
+                f_prc = "close"
+                i_prc = f"candle{candle_size}_ma{w_size}"
+                processed_data[f"{f_prc}_{i_prc}"] = spread(
+                    self.analyse_data, f_prc, i_prc
                 )
 
-        # 추가 변수 생성 - 1 Forward return, log return
-        final_series = pd.Series(
-            np.append(
-                self.analyse_data["close"].values[1:],
-                self.analyse_data["close"].values[-1],
-            ),
-        )
-        init_series = self.analyse_data["close"]
-        processed_data["y_rtn_close"] = (
-            (final_series - init_series) / init_series
-        ) * 100
+        # 변수 생성: (종가 - 마지노선)/마지노선
+        for i_prc in [
+            "10_lower_maginot",
+            "10_upper_maginot",
+            "20_lower_maginot",
+            "20_upper_maginot",
+            "50_lower_maginot",
+            "50_upper_maginot",
+        ]:
+            f_prc = "close"
+            processed_data[f"{f_prc}_{i_prc}"] = spread(self.analyse_data, f_prc, i_prc)
 
-        final_series = pd.Series(
-            np.append(
-                self.analyse_data["close_log"].values[1:],
-                self.analyse_data["close_log"].values[-1],
-            ),
-        )
-        init_series = self.analyse_data["close_log"]
-        processed_data["y_rtn_close_log"] = final_series - init_series
+        # 변수 생성: confidence
+        for f_prc in ["high", "low"]:
+            i_prc = "close"
+            processed_data[f"{f_prc}_{i_prc}"] = diff(self.analyse_data, f_prc, i_prc)
+        
+        # 변수 생성: confidence
+        for candle_size in self.candle_size[1:]:
+            for f_prc in ["high", "low"]:
+                f_prc = f"{candle_size}mins_{f_prc}"
+                i_prc = "close"
+                processed_data[f"{f_prc}_{i_prc}"] = diff(self.analyse_data, f_prc, i_prc)
+            
+        # 변수 생성: 1 Forward return
+        processed_data["y_rtn_close"] = self.analyse_data["close"].pct_change()
 
         # 추가 변수 타임 스템프
         processed_data["hours"] = self.analyse_data["hours"]
         processed_data["mins"] = self.analyse_data["mins"]
         processed_data["date"] = self.analyse_data["date"]
+        processed_data["datetime"] = self.analyse_data["datetime"]
         processed_data["close"] = self.analyse_data["close"]
 
         return processed_data

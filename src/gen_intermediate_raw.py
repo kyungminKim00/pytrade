@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import bottleneck as bn
 
-# import pandas as pd
+# import modin.pandas as pd
 import modin.pandas as pd
 import numpy as np
 import psutil
@@ -73,8 +73,8 @@ sensingval_col = [
 #             first_cursor = t_idx
 #             break
 #     assert first_cursor is not None, "Data Errors!!!"
-# 
-    # return ohlc_record(partial_pd, first_cursor, last_cursor)
+#
+# return ohlc_record(partial_pd, first_cursor, last_cursor)
 
 
 # def ohlc_record(partial_pd, first_cursor, last_cursor):
@@ -83,13 +83,13 @@ sensingval_col = [
 #     candle_low = partial_pd.loc[first_cursor:]["low"].min()
 #     candle_close = partial_pd.loc[last_cursor]["close"]
 
-    # candle_open = partial_pd[first_cursor]["open"]
-    # candle_high = partial_pd[first_cursor:]["high"].max()
-    # candle_low = partial_pd[first_cursor:]["low"].min()
-    # candle_close = partial_pd[last_cursor]["close"]
+# candle_open = partial_pd[first_cursor]["open"]
+# candle_high = partial_pd[first_cursor:]["high"].max()
+# candle_low = partial_pd[first_cursor:]["low"].min()
+# candle_close = partial_pd[last_cursor]["close"]
 
-    # data = [last_cursor, candle_open, candle_high, candle_low, candle_close]
-    # return data
+# data = [last_cursor, candle_open, candle_high, candle_low, candle_close]
+# return data
 
 
 # @ray.remote
@@ -150,7 +150,7 @@ sensingval_col = [
 #         dummy = values[eor[eor < max_time]]
 #         data = np.append(data, dummy, axis=0)
 
-    # return f"{sub_window_size}mins", data
+# return f"{sub_window_size}mins", data
 
 
 class RawDataReader:
@@ -190,7 +190,7 @@ class RawDataReader:
         # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
         r_pd = r_pd[-2000:]
         print_c("Reduce the size of raw data - Remove this section")
-        
+
         # generate datetime
         r_pd["datetime"] = pd.to_datetime(
             r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
