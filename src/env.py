@@ -6,47 +6,7 @@ import modin.pandas as pd
 
 from gen_intermediate_raw import RawDataReader
 from util import print_c
-from attributes import spread, diff
-
-pivot_col = [
-    "candle1_ma9",
-    "candle1_ma9",
-    "candle1_ma50",
-    "candle1_ma100",
-    "candle3_ma9",
-    "candle3_ma50",
-    "candle3_ma100",
-    "candle5_ma9",
-    "candle5_ma50",
-    "candle5_ma100",
-    "candle15_ma9",
-    "candle15_ma50",
-    "candle15_ma100",
-    "10_lower_maginot",
-    "10_upper_maginot",
-    "20_lower_maginot",
-    "20_upper_maginot",
-    "50_lower_maginot",
-    "50_upper_maginot",
-]
-sensingval_col = [
-    "open",
-    "high",
-    "low",
-    "close",
-    "3mins_open",
-    "3mins_high",
-    "3mins_low",
-    "3mins_close",
-    "5mins_open",
-    "5mins_high",
-    "5mins_low",
-    "5mins_close",
-    "15mins_open",
-    "15mins_high",
-    "15mins_low",
-    "15mins_close",
-]
+from attributes import spread
 
 
 class ENV:
@@ -117,20 +77,22 @@ class ENV:
             f_prc = "close"
             processed_data[f"{f_prc}_{i_prc}"] = spread(self.analyse_data, f_prc, i_prc)
 
-        # 변수 생성: confidence
-        for f_prc in ["high", "low"]:
-            i_prc = "close"
-            processed_data[f"{f_prc}_{i_prc}"] = diff(self.analyse_data, f_prc, i_prc)
+        # 변수 생성: 1분봉의 컨피던스
+        for i_prc in ["high", "low"]:
+            f_prc = "close"
+            processed_data[f"{f_prc}_{i_prc}"] = spread(self.analyse_data, f_prc, i_prc)
 
-        # 변수 생성: confidence
+        # 변수 생성: 각 분봉의 컨피던스, (이전 분봉의 종가 - 현재종가)/현재종가
         for candle_size in self.candle_size[1:]:
-            for f_prc in ["high", "low"]:
-                f_prc = f"{candle_size}mins_{f_prc}"
-                i_prc = "close"
-                processed_data[f"{f_prc}_{i_prc}"] = diff(
+            for i_prc in ["high", "low"]:
+                i_prc = f"{candle_size}mins_{i_prc}"
+                f_prc = "close"
+                processed_data[f"{f_prc}_{i_prc}"] = spread(
                     self.analyse_data, f_prc, i_prc
                 )
-
+            # 분봉의 시가 == 이전 분봉의 종가
+            i_prc = f"{candle_size}mins_open"
+            processed_data[f"{f_prc}_{i_prc}"] = spread(self.analyse_data, f_prc, i_prc)
         # 변수 생성: 1 Forward return
         processed_data["y_rtn_close"] = self.analyse_data["close"].pct_change()
 

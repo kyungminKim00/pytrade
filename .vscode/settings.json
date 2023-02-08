@@ -1,5 +1,12 @@
 {
     "python.formatting.provider": "black",
     "python.languageServer": "Pylance",
-    "python.linting.pylintEnabled": true
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.formatting.blackPath": "/opt/conda/envs/rapids/bin/black",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+    },
+    "files.autoSave": "onFocusChange",
 }

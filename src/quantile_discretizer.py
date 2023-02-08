@@ -1,8 +1,8 @@
-import numpy as np
-from sklearn.preprocessing import KBinsDiscretizer
-import modin.pandas as pd
-import ray
 import joblib
+import modin.pandas as pd
+import numpy as np
+import ray
+from sklearn.preprocessing import KBinsDiscretizer
 
 
 class QuantileDiscretizer:

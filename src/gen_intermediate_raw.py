@@ -1,33 +1,51 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import bottleneck as bn
-
-# import modin.pandas as pd
 import modin.pandas as pd
 import numpy as np
 import psutil
 import ray
 
-from util import get_min_range, print_c
+from util import print_c
 
-sensingval_col = [
-    "open",
-    "high",
-    "low",
-    "close",
-    "3mins_open",
-    "3mins_high",
-    "3mins_low",
-    "3mins_close",
-    "5mins_open",
-    "5mins_high",
-    "5mins_low",
-    "5mins_close",
-    "15mins_open",
-    "15mins_high",
-    "15mins_low",
-    "15mins_close",
-]
+# pivot_col = [
+#     "candle1_ma9",
+#     "candle1_ma9",
+#     "candle1_ma50",
+#     "candle1_ma100",
+#     "candle3_ma9",
+#     "candle3_ma50",
+#     "candle3_ma100",
+#     "candle5_ma9",
+#     "candle5_ma50",
+#     "candle5_ma100",
+#     "candle15_ma9",
+#     "candle15_ma50",
+#     "candle15_ma100",
+#     "10_lower_maginot",
+#     "10_upper_maginot",
+#     "20_lower_maginot",
+#     "20_upper_maginot",
+#     "50_lower_maginot",
+#     "50_upper_maginot",
+# ]
+# sensingval_col = [
+#     "open",
+#     "high",
+#     "low",
+#     "close",
+#     "3mins_open",
+#     "3mins_high",
+#     "3mins_low",
+#     "3mins_close",
+#     "5mins_open",
+#     "5mins_high",
+#     "5mins_low",
+#     "5mins_close",
+#     "15mins_open",
+#     "15mins_high",
+#     "15mins_low",
+#     "15mins_close",
+# ]
 
 
 # @ray.remote
@@ -199,7 +217,7 @@ class RawDataReader:
         # 리파인 raw 1분갱신 캔들가격과 캔들이평 추가
         r_pd = self._generate_candle_price(r_pd)
 
-        # 실제 쓰이는 분봉 데이터 생성을 위해 00분에 맞추어서 데이터 재조정
+        # option. 실제 쓰이는 분봉 데이터 생성을 위해 00분에 맞추어서 데이터 재조정
         r_pd = self._calibrate_min(r_pd)
 
         # # 분봉 데이터 생성
@@ -287,9 +305,6 @@ class RawDataReader:
         return r_pd.drop(labels=range(first_index, first_00min_index), axis=0)
 
     def _generate_candle_price(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        # # group by code
-        # https://teddylee777.github.io/pandas/pandas-groupby/
-
         # case: candle_size = 5min, moving_averages = 9
         for candle_size in self.candle_size:
             identifier = f"candle{candle_size}_datetime"
