@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.preprocessing import KBinsDiscretizer
 import modin.pandas as pd
 import ray
+import joblib
 
 
 def spread(
@@ -31,27 +32,44 @@ def decimal_conversion(vector, n_bins):
     return decimal
 
 
-def conver_to_index(df: pd.DataFrame) -> pd.Series:
+class QuantileDiscretizer:
+    def __init__(self, df: pd.DataFrame):
+        self.mean = df.mean(axis=0)
+        self.std = df.std(axis=0, ddof=1)
+        
+        # Clip outliers using mean and standard deviation
+        clipped_vectors = df.clip(self.mean - 3 * self.std, self.mean + 3 * self.std)
+        # Scott's rule: Determine the bin size
+        n_bins = 3.5 * self.std * np.power(len(df.shape[0]), -1 / 3)
+        # add: check later if we need to do this
+        self.n_bins = np.max(n_bins)
+
+        self.discretizer = KBinsDiscretizer(
+            n_bins=self.n_bins, encode="ordinal", strategy="uniform"
+        ).fit(clipped_vectors)
+
+    def quantized_vectors(self, vectors):
+        return self.discretizer.transform(vectors)
+
+
+def conver_to_index(df: pd.DataFrame, b_load_parms: bool = False) -> pd.Series:
+    if not b_load_parms:
+        joblib.dump(QuantileDiscretizer(df), "./discretizer.pkl")
+
+    qd = joblib.load("./discretizer.pkl")
 
     # Clip outliers using mean and standard deviation
-    mean = df.mean(axis=0)
-    std = df.std(axis=0, ddof=1)
-    clipped_vectors = df.clip(mean - 3 * std, mean + 3 * std)
-
-    # Scott's rule: Determine the bin size
-    n_bins = 3.5 * std * np.power(len(clipped_vectors), -1 / 3)
-
-    # add: check later if we need to do this
-    n_bins = np.max(n_bins)
-    
-    discretizer = KBinsDiscretizer(n_bins=n_bins, encode="ordinal", strategy="uniform")
-    quantized_vectors = discretizer.fit_transform(clipped_vectors)
+    clipped_vectors = df.clip(qd.mean - 3 * qd.std, qd.mean + 3 * qd.std)
 
     # Convert the quantized vectors into decimal values
     decimal_vectors = ray.get(
-        [decimal_conversion.remote(vector, n_bins) for vector in quantized_vectors]
+        [
+            decimal_conversion.remote(vector, qd.n_bins)
+            for vector in qd.quantized_vectors(clipped_vectors)
+        ]
     )
     return pd.Series(decimal_vectors, index=df.index)
+
 
 def invarient_risk_allocation():
     import matplotlib.pyplot as plt
