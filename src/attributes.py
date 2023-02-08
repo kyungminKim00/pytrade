@@ -1,8 +1,5 @@
 import numpy as np
 import modin.pandas as pd
-import ray
-import joblib
-from quantile_discretizer import QuantileDiscretizer
 
 
 def spread(
@@ -21,32 +18,6 @@ def diff(
         (df[final_price] - df[init_price]),
         index=df.index,
     )
-
-
-# Convert the quantized vectors into decimal values
-@ray.remote
-def decimal_conversion(vector, n_bins):
-    decimal = 0
-    for i, value in enumerate(vector):
-        decimal += value * (n_bins**i)
-    return decimal
-
-
-def conver_to_index(df: pd.DataFrame, fit_discretizer: bool = False) -> pd.Series:
-    if fit_discretizer:
-        joblib.dump(QuantileDiscretizer(df), "./discretizer.pkl")
-
-    qd = joblib.load("./discretizer.pkl")
-    clipped_vectors = df.clip(qd.mean - 3 * qd.std, qd.mean + 3 * qd.std)
-
-    # Convert the quantized vectors into decimal values
-    decimal_vectors = ray.get(
-        [
-            decimal_conversion.remote(vector, qd.n_bins)
-            for vector in qd.quantized_vectors(clipped_vectors)
-        ]
-    )
-    return pd.Series(decimal_vectors, index=df.index)
 
 
 def invarient_risk_allocation():

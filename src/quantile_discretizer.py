@@ -1,6 +1,8 @@
 import numpy as np
 from sklearn.preprocessing import KBinsDiscretizer
 import modin.pandas as pd
+import ray
+import joblib
 
 
 class QuantileDiscretizer:
@@ -21,3 +23,30 @@ class QuantileDiscretizer:
 
     def quantized_vectors(self, vectors):
         return self.discretizer.transform(vectors)
+
+
+# Convert the quantized vectors into decimal values
+@ray.remote
+def decimal_conversion(vector, n_bins):
+    decimal = 0
+    for i, value in enumerate(vector):
+        decimal += value * (n_bins**i)
+    return decimal
+
+
+# convert the quantized vectors into decimal values
+def convert_to_index(df: pd.DataFrame, fit_discretizer: bool = False) -> pd.Series:
+    if fit_discretizer:
+        joblib.dump(QuantileDiscretizer(df), "./discretizer.pkl")
+
+    qd = joblib.load("./discretizer.pkl")
+    clipped_vectors = df.clip(qd.mean - 3 * qd.std, qd.mean + 3 * qd.std)
+
+    # Convert the quantized vectors into decimal values
+    decimal_vectors = ray.get(
+        [
+            decimal_conversion.remote(vector, qd.n_bins)
+            for vector in qd.quantized_vectors(clipped_vectors)
+        ]
+    )
+    return pd.Series(decimal_vectors, index=df.index)
