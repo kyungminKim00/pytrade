@@ -121,14 +121,16 @@ class ENV:
         for f_prc in ["high", "low"]:
             i_prc = "close"
             processed_data[f"{f_prc}_{i_prc}"] = diff(self.analyse_data, f_prc, i_prc)
-        
+
         # 변수 생성: confidence
         for candle_size in self.candle_size[1:]:
             for f_prc in ["high", "low"]:
                 f_prc = f"{candle_size}mins_{f_prc}"
                 i_prc = "close"
-                processed_data[f"{f_prc}_{i_prc}"] = diff(self.analyse_data, f_prc, i_prc)
-            
+                processed_data[f"{f_prc}_{i_prc}"] = diff(
+                    self.analyse_data, f_prc, i_prc
+                )
+
         # 변수 생성: 1 Forward return
         processed_data["y_rtn_close"] = self.analyse_data["close"].pct_change()
 
