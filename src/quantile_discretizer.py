@@ -14,7 +14,8 @@ class QuantileDiscretizer:
         clipped_vectors = df.clip(self.mean - 3 * self.std, self.mean + 3 * self.std)
         # Scott's rule: Determine the bin size
         n_bins = 3.5 * self.std * np.power(len(df.shape[0]), -1 / 3)
-        # add: check later if we need to do this
+
+        # KBinsDiscretizer 을 특징별로 두면 코드가 너무 복잡 해짐
         self.n_bins = np.max(n_bins)
 
         self.discretizer = KBinsDiscretizer(
@@ -44,22 +45,38 @@ def decimal_conversion(vector, n_bins):
 # convert the quantized vectors into decimal values
 def convert_to_index(df: pd.DataFrame, fit_discretizer: bool = False) -> pd.Series:
     if fit_discretizer:
-        joblib.dump(QuantileDiscretizer(df), "./discretizer.pkl")
+        joblib.dump(QuantileDiscretizer(df), "./assets/discretizer.pkl")
 
-    qd = joblib.load("./discretizer.pkl")
+    qd = joblib.load("./assets/discretizer.pkl")
+    obj_dict = joblib.load("./assets/obj_dict.pkl")
+
     clipped_vectors = df.clip(qd.mean - 3 * qd.std, qd.mean + 3 * qd.std)
 
     # # Convert the quantized vectors into decimal values
     # decimal_vectors = ray.get(
     #     [
-    #         decimal_conversion.remote(vector, qd.n_bins)
+    #         str(decimal_conversion.remote(vector, qd.n_bins))
     #         for vector in qd.quantized_vectors(clipped_vectors)
     #     ]
     # )
     # Convert the quantized vectors into decimal values
     decimal_vectors = [
-        decimal_conversion(vector, qd.n_bins)
+        str(decimal_conversion(vector, qd.n_bins))
         for vector in qd.quantized_vectors(clipped_vectors)
     ]
 
-    return pd.Series(decimal_vectors, index=df.index)
+    def id_from_dict(pttn):
+        max_number = len(obj_dict)
+        key = "_".join(pttn)
+        try:
+            p_id = obj_dict[key]
+        except KeyError:  # add new pattern
+            obj_dict[key] = max_number + 1
+            p_id = max_number + 1
+
+            joblib.dump(obj_dict, "./assets/obj_dict.pkl")
+        return p_id
+
+    pattern_id = list(map(id_from_dict, decimal_vectors))
+
+    return pd.Series(pattern_id, index=df.index)

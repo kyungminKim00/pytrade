@@ -217,6 +217,9 @@ class RawDataReader:
         # 리파인 raw 1분갱신 캔들가격과 캔들이평 추가
         r_pd = self._generate_candle_price(r_pd)
 
+        # 3분봉 기준 의사결정 가능
+        r_pd = self._mark_determinable(r_pd)
+
         # option. 실제 쓰이는 분봉 데이터 생성을 위해 00분에 맞추어서 데이터 재조정
         r_pd = self._calibrate_min(r_pd)
 
@@ -303,6 +306,15 @@ class RawDataReader:
         first_00min_index = r_pd["mins"][r_pd["mins"] == "00"].index[0]
         print("Calibrate Min: Done")
         return r_pd.drop(labels=range(first_index, first_00min_index), axis=0)
+
+    def _mark_determinable(
+        self, r_pd: pd.DataFrame, determinable_candle: int = 3
+    ) -> pd.DataFrame:
+        r_pd["mark"] = np.where(
+            r_pd["datetime"] % determinable_candle == 0, True, False
+        )
+        print("Mark determinable date: Done")
+        return r_pd
 
     def _generate_candle_price(self, r_pd: pd.DataFrame) -> pd.DataFrame:
         # case: candle_size = 5min, moving_averages = 9
