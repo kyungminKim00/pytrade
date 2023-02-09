@@ -1,12 +1,12 @@
 # from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import modin.pandas as pd
+import numpy as np
 
+from attributes import spread
 from gen_intermediate_raw import RawDataReader
 from util import print_c
-from attributes import spread
 
 
 class ENV:
@@ -111,7 +111,8 @@ class ENV:
         test: Nasdaq(IXIC) index
         문제점: 지수는 거래량이 1일후에 나오는 것은 상관없으나, 지수를 실시간 매매할수 없음
         문제점: 트레이더블 지수 추종 상품과 지수는 가격지표가 다르기 때문에 직접 모형을 적용 할 수 없음
-        문제점: 트레이더블 지수 추종 상품의 거래량을 믿어도 될 지 확신이 없음
+        문제점: 트레이더블 지수 추종 상품의 거래량을 믿어도 될 지 확신이
+
         위의 세가지 이슈는 운영시 고려되어야 함
         """
         print("여기 부터 시작")

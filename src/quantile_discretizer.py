@@ -25,8 +25,15 @@ class QuantileDiscretizer:
         return self.discretizer.transform(vectors)
 
 
-# Convert the quantized vectors into decimal values
-@ray.remote
+# # Convert the quantized vectors into decimal values
+# @ray.remote
+# def decimal_conversion(vector, n_bins):
+#     decimal = 0
+#     for i, value in enumerate(vector):
+#         decimal += value * (n_bins**i)
+#     return decimal
+
+
 def decimal_conversion(vector, n_bins):
     decimal = 0
     for i, value in enumerate(vector):
@@ -42,11 +49,17 @@ def convert_to_index(df: pd.DataFrame, fit_discretizer: bool = False) -> pd.Seri
     qd = joblib.load("./discretizer.pkl")
     clipped_vectors = df.clip(qd.mean - 3 * qd.std, qd.mean + 3 * qd.std)
 
+    # # Convert the quantized vectors into decimal values
+    # decimal_vectors = ray.get(
+    #     [
+    #         decimal_conversion.remote(vector, qd.n_bins)
+    #         for vector in qd.quantized_vectors(clipped_vectors)
+    #     ]
+    # )
     # Convert the quantized vectors into decimal values
-    decimal_vectors = ray.get(
-        [
-            decimal_conversion.remote(vector, qd.n_bins)
-            for vector in qd.quantized_vectors(clipped_vectors)
-        ]
-    )
+    decimal_vectors = [
+        decimal_conversion(vector, qd.n_bins)
+        for vector in qd.quantized_vectors(clipped_vectors)
+    ]
+
     return pd.Series(decimal_vectors, index=df.index)
