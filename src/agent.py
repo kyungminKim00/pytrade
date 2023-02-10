@@ -2,10 +2,10 @@ import random
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import modin.pandas as pd
+import numpy as np
 
-from env import ENV
+from data_reader import DataReader
 from util import print_c
 
 actions = {
@@ -19,22 +19,32 @@ actions = {
 }
 
 
-class Agent(ENV):
+class Agent:
     def __init__(
         self,
-        raw_filename_min: str = None,
-        pivot_filename_day: str = None,
         mode: str = None,
+        data_reader: DataReader = None,
     ) -> None:
-        super().__init__(
-            raw_filename_min=raw_filename_min,
-            pivot_filename_day=pivot_filename_day,
-            mode=mode,
-        )
-
+        # super().__init__(
+        #     raw_filename_min=raw_filename_min,
+        #     pivot_filename_day=pivot_filename_day,
+        # )
+        self._mode = mode
+        self._data_reader = data_reader
         self._previous_action = actions["NP"]  # 관측 액션: T-1 시점의 액션
         self._episode_cum_return = 0
         self._account = OrderedDict()  # validation / inference 에 활용
+
+        if mode == "train":
+            self.idx_list = data_reader.train_idx.copy()
+        elif mode == "validation":
+            self.idx_list = data_reader.validation_idx.copy()
+        elif mode == "inference":
+            self.idx_list = data_reader.inference_idx.copy()
+        else:
+            raise ValueError("Invalid mode")
+
+        self.eof = None
 
         self.reset()
 
@@ -70,29 +80,28 @@ class Agent(ENV):
         self._episode_cum_return += rtn
 
     def reset(self) -> None:  # epoch done
-        self.current_idx = self.immutable_idx.copy()
         self.eof = False
         self.previous_action = actions["NP"]
         self.episode_cum_return = 0
 
-        if self.mode == "train":
-            random.shuffle(self.current_idx)
-        elif self.mode in ("validation", "inference"):
+        if self._mode == "train":
+            random.shuffle(self.idx_list)
+        elif self._mode in ("validation", "inference"):
             pass
         else:
             assert False, "None Defined mode"
 
     def next(self) -> pd.Series:
         try:
-            current_idx = self.current_idx.pop(0)
-            self.sample = self._sampler(current_idx)
-            if self.mode in ("validation", "inference"):
-                self.account = (current_idx, self.sample)
+            current_idx = self.idx_list.pop(0)
+            sample = self._data_reader.sampler(current_idx)
+            if self._mode in ("validation", "inference"):
+                self.account = (current_idx, sample)
         except IndexError:
             self.eof = True
-            self.sample = None
+            sample = None
 
-        return self.sample
+        return sample
 
     def done(self):  # episode done
         self.previous_action = actions["NP"]
@@ -100,24 +109,27 @@ class Agent(ENV):
 
 
 if __name__ == "__main__":
-    train_agent = Agent(
+    # 데이터 리더 생성
+    data_reader_instance = DataReader(
         raw_filename_min="./src/local_data/raw/dax_tm3.csv",
         pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+    )
+
+    train_agent = Agent(
         mode="train",
+        data_reader=data_reader_instance,
     )
     train_agent.next()
 
     validation_agent = Agent(
-        raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-        pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
         mode="validation",
+        data_reader=data_reader_instance,
     )
     validation_agent.next()
 
     inference_agent = Agent(
-        raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-        pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
         mode="inference",
+        data_reader=data_reader_instance,
     )
     inference_agent.next()
 

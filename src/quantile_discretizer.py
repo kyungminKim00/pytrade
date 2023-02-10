@@ -43,7 +43,7 @@ def decimal_conversion(vector, n_bins):
 
 
 # convert the quantized vectors into decimal values
-def convert_to_index(df: pd.DataFrame, fit_discretizer: bool = False) -> pd.Series:
+def encode(df: pd.DataFrame, fit_discretizer: bool = False) -> pd.Series:
     if fit_discretizer:
         joblib.dump(QuantileDiscretizer(df), "./assets/discretizer.pkl")
 

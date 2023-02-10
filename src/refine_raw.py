@@ -171,48 +171,45 @@ from util import print_c
 # return f"{sub_window_size}mins", data
 
 
-class RawDataReader:
+class Refine:
     def __init__(
         self,
-        raw_filename_min: str = "./src/local_data/raw/dax_tm3.csv",
-        params: Dict[str, int] = {
-            "candle_size": [1, 3, 5, 15],
-            "w_size": [9, 50, 100],
-        },
+        raw_filename_min: str = None,
+        params: Dict[str, int] = None,
     ) -> None:
         # init ray
         ray.shutdown()
         ray.init(num_cpus=psutil.cpu_count(logical=False))
 
         # load data from csv
-        self.raw_filename_min = raw_filename_min
-        self.candle_size = params["candle_size"]
-        self.w_size = params["w_size"]
-
-        self.raw = self._get_rawdata()
-
-    def _get_rawdata(self) -> pd.DataFrame:
         r_pd = pd.read_csv(
-            self.raw_filename_min, sep=",", dtype={"date": object, "time": object}
+            raw_filename_min, sep=",", dtype={"date": object, "time": object}
         )
 
-        # set index
-        r_pd["idx"] = np.arange(r_pd.shape[0])
-        r_pd.set_index("idx", inplace=True)
+        self._candle_size = params["candle_size"]
+        self._w_size = params["w_size"]
+        self._raw = self._refine_process(r_pd)
+
+    @property
+    def raw(self):
+        return self._raw
+
+    def _refine_process(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+        # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
+        r_pd = r_pd[-2000:]
+        print_c("Reduce the size of raw data - Remove this section")
 
         # hours and minutes
         r_pd["hours"] = r_pd["time"].str[:-2]
         r_pd["mins"] = r_pd["time"].str[-2:]
-        # r_pd = r_pd.astype({"hours": int, "mins": int})
-
-        # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
-        r_pd = r_pd[-2000:]
-        print_c("Reduce the size of raw data - Remove this section")
 
         # generate datetime
         r_pd["datetime"] = pd.to_datetime(
             r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
         )
+
+        # 인덱스 설정
+        r_pd.set_index("datetime", inplace=True, drop=False)
 
         # 리파인 raw 1분갱신 캔들가격과 캔들이평 추가
         r_pd = self._generate_candle_price(r_pd)
@@ -238,7 +235,7 @@ class RawDataReader:
     #     res = ray.get(
     #         [
     #             mp_gen_candles.remote(values, max_time, sub_window_size)
-    #             for sub_window_size in self.candle_size[1:]
+    #             for sub_window_size in self._candle_size[1:]
     #         ]
     #     )
     #     for k, v in res:
@@ -259,7 +256,7 @@ class RawDataReader:
 
     # def _gen_candles2(self, r_pd: pd.DataFrame) -> pd.DataFrame:
     #     r_pd.to_csv("./src/local_data/raw/gen_candles_debug_source.csv")
-    #     for candle_size in self.candle_size[1:]:
+    #     for candle_size in self._candle_size[1:]:
     #         min_range = list(get_min_range(candle_size).values())
 
     #         # 3/5/15 분봉의 시고저종 산출
@@ -304,7 +301,7 @@ class RawDataReader:
     def _calibrate_min(self, r_pd: pd.DataFrame) -> pd.DataFrame:
         first_index = r_pd.index[0]
         first_00min_index = r_pd["mins"][r_pd["mins"] == "00"].index[0]
-        print("Calibrate Min: Done")
+        print("Calibrate data: Done")
         return r_pd.drop(labels=range(first_index, first_00min_index), axis=0)
 
     def _mark_determinable(
@@ -317,28 +314,55 @@ class RawDataReader:
         return r_pd
 
     def _generate_candle_price(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+        # Tip: 캔들의 시작에 데이터 수집이 유리 함 (예. 1분 1초)
+
         # case: candle_size = 5min, moving_averages = 9
-        for candle_size in self.candle_size:
+        for candle_size in self._candle_size:
             identifier = f"candle{candle_size}_datetime"
             r_pd[identifier] = r_pd["datetime"].dt.floor(f"{candle_size}T")
 
-            # 1 mins prices respect to the candle
+            # 캔들에 대응 하는 매분 업데이트 데이터 (예. 3분봉의 매분 업데이트 데이터)
             if candle_size > 1:
+                # (시가) 캔들의 시초가 (캔들의 시초가는 해당 시간내 변하지 않는 값)
                 candle_open = r_pd.groupby(identifier)["open"].apply(
                     lambda x: x.iloc[0]
                 )
-                candle_high = r_pd.groupby(identifier)["high"].cummax()
-                candle_low = r_pd.groupby(identifier)["low"].cummin()
                 candle_open.name = f"{candle_size}mins_open"
-                candle_high.name = f"{candle_size}mins_high"
-                candle_low.name = f"{candle_size}mins_low"
+                r_pd = r_pd.join(candle_open, on=identifier, how="outer")
 
-                for df_price in [candle_open, candle_high, candle_low]:
-                    r_pd = r_pd.join(df_price, on=identifier, how="outer")
+                # (고가) 매분 갱신되는 캔들의 데이터 (최대값 갱신)
+                # candle_high = r_pd.groupby(identifier)["high"].cummax()
+
+                # candle_high = r_pd.groupby(identifier)["high"].apply(
+                #     lambda x: x.cummax()
+                # )
+
+                candle_high = r_pd.groupby(identifier).apply(
+                    lambda x: x["high"].cummax()
+                )
+                candle_high.reset_index(identifier, drop=True, inplace=True)
+                candle_high.rename(
+                    columns={"high": f"{candle_size}mins_high"}, inplace=True
+                )
+                r_pd = r_pd.join(candle_high, how="inner")
+
+                # (저가) 매분 갱신되는 캔들의 데이터 (최소값 갱신)
+                # candle_low = r_pd.groupby(identifier)["low"].cummin()
+                # candle_low.index.name = identifier
+                # candle_low.name = f"{candle_size}mins_low"
+                # r_pd = r_pd.join(candle_low, on=identifier, how="inner")
+                candle_low = r_pd.groupby(identifier).apply(lambda x: x["low"].cummin())
+                candle_low.reset_index(identifier, drop=True, inplace=True)
+                candle_low.rename(
+                    columns={"low": f"{candle_size}mins_low"}, inplace=True
+                )
+                r_pd = r_pd.join(candle_low, how="inner")
+
+                # (종가) 매분 갱신되는 캔들의 데이터 (최신 종가가 캔들의 종가)
                 r_pd[f"{candle_size}mins_close"] = r_pd["close"]
 
-            # moving averages respect to the candle
-            for w_size in self.w_size:
+            # 각 캔들에 대응하는 이동평균 데이터
+            for w_size in self._w_size:
                 g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
                 data = r_pd.groupby(identifier)["close"].apply(lambda x: x.iloc[-1])
                 moving_avg = data.rolling(window=w_size).mean()
@@ -350,15 +374,15 @@ class RawDataReader:
         # res = ray.get(
         #     [
         #         mp_moving_averages.remote(r_pd["close"].values, w_size, candle_size)
-        #         for candle_size in self.candle_size
-        #         for w_size in self.w_size
+        #         for candle_size in self._candle_size
+        #         for w_size in self._w_size
         #     ]
         # )
         # for k, v in res:
         #     r_pd[k] = v
 
         r_pd = r_pd.dropna(axis=0)
-        print("Gen Candle prices: Done")
+        print("Refine candle prices: Done")
         return r_pd
 
     def pd_formatting(self, data):
