@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import bottleneck as bn
 import modin.pandas as pd
 import numpy as np
 import psutil
@@ -196,7 +197,7 @@ class Refine:
 
     def _refine_process(self, r_pd: pd.DataFrame) -> pd.DataFrame:
         # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
-        r_pd = r_pd[-2000:]
+        r_pd = r_pd[-35000:]
         print_c("Reduce the size of raw data - Remove this section")
 
         # hours and minutes
@@ -217,8 +218,8 @@ class Refine:
         # 3분봉 기준 의사결정 가능
         r_pd = self._mark_determinable(r_pd)
 
-        # option. 실제 쓰이는 분봉 데이터 생성을 위해 00분에 맞추어서 데이터 재조정
-        r_pd = self._calibrate_min(r_pd)
+        # # option. 실제 쓰이는 분봉 데이터 생성을 위해 00분에 맞추어서 데이터 재조정
+        # r_pd = self._calibrate_min(r_pd)
 
         # # 분봉 데이터 생성
         # r_pd = self._gen_candles2(r_pd)
@@ -298,18 +299,17 @@ class Refine:
 
     #     return r_pd
 
-    def _calibrate_min(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        first_index = r_pd.index[0]
-        first_00min_index = r_pd["mins"][r_pd["mins"] == "00"].index[0]
-        print("Calibrate data: Done")
-        return r_pd.drop(labels=range(first_index, first_00min_index), axis=0)
+    # def _calibrate_min(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+    #     first_index = r_pd.index[0]
+    #     first_00min_index = r_pd["mins"][r_pd["mins"] == "00"].index[0]
+    #     print("Calibrate data: Done")
+    #     return r_pd.drop(labels=range(first_index, first_00min_index), axis=0)
 
     def _mark_determinable(
         self, r_pd: pd.DataFrame, determinable_candle: int = 3
     ) -> pd.DataFrame:
-        r_pd["mark"] = np.where(
-            r_pd["datetime"] % determinable_candle == 0, True, False
-        )
+        determinable_datetime = r_pd["datetime"].dt.floor(f"{determinable_candle}T")
+        r_pd["mark"] = r_pd["datetime"] == determinable_datetime
         print("Mark determinable date: Done")
         return r_pd
 
@@ -333,30 +333,33 @@ class Refine:
                 # (고가) 매분 갱신되는 캔들의 데이터 (최대값 갱신)
                 # candle_high = r_pd.groupby(identifier)["high"].cummax()
 
-                # candle_high = r_pd.groupby(identifier)["high"].apply(
-                #     lambda x: x.cummax()
-                # )
-
-                candle_high = r_pd.groupby(identifier).apply(
-                    lambda x: x["high"].cummax()
+                candle_high = r_pd.groupby(identifier)["high"].apply(
+                    lambda x: x.cummax()
                 )
-                candle_high.reset_index(identifier, drop=True, inplace=True)
-                candle_high.rename(
-                    columns={"high": f"{candle_size}mins_high"}, inplace=True
-                )
+                candle_high.name = f"{candle_size}mins_high"
                 r_pd = r_pd.join(candle_high, how="inner")
 
+                # candle_high = r_pd.groupby(identifier).apply(
+                #     lambda x: x["high"].cummax()
+                # )
+                # candle_high.reset_index(identifier, drop=True, inplace=True)
+                # candle_high.rename(
+                #     columns={"high": f"{candle_size}mins_high"}, inplace=True
+                # )
+                # r_pd = r_pd.join(candle_high, how="inner")
+
                 # (저가) 매분 갱신되는 캔들의 데이터 (최소값 갱신)
-                # candle_low = r_pd.groupby(identifier)["low"].cummin()
-                # candle_low.index.name = identifier
-                # candle_low.name = f"{candle_size}mins_low"
-                # r_pd = r_pd.join(candle_low, on=identifier, how="inner")
-                candle_low = r_pd.groupby(identifier).apply(lambda x: x["low"].cummin())
-                candle_low.reset_index(identifier, drop=True, inplace=True)
-                candle_low.rename(
-                    columns={"low": f"{candle_size}mins_low"}, inplace=True
-                )
+                candle_low = r_pd.groupby(identifier)["low"].apply(lambda x: x.cummin())
+                candle_low.index.name = identifier
+                candle_low.name = f"{candle_size}mins_low"
                 r_pd = r_pd.join(candle_low, how="inner")
+
+                # candle_low = r_pd.groupby(identifier).apply(lambda x: x["low"].cummin())
+                # candle_low.reset_index(identifier, drop=True, inplace=True)
+                # candle_low.rename(
+                #     columns={"low": f"{candle_size}mins_low"}, inplace=True
+                # )
+                # r_pd = r_pd.join(candle_low, how="inner")
 
                 # (종가) 매분 갱신되는 캔들의 데이터 (최신 종가가 캔들의 종가)
                 r_pd[f"{candle_size}mins_close"] = r_pd["close"]
