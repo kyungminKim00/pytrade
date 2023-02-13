@@ -1,5 +1,11 @@
 # import numpy as np
 import modin.pandas as pd
+import ray
+
+
+@ray.remote
+def spread_parallel(analyse_data, f_prc, i_prc):
+    return spread(analyse_data, f_prc, i_prc)
 
 
 def spread(

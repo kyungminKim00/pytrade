@@ -9,13 +9,17 @@ from data_reader import DataReader
 from util import print_c
 
 actions = {
-    "NP": [0, 0, 0, 0, 0, 0, 0],
-    "BP_Init": [0, 1, 0, 0, 0, 0, 0],
-    "SP_Init": [0, 0, 1, 0, 0, 0, 0],
-    "BP_Hold": [0, 0, 0, 1, 0, 0, 0],
-    "SP_Hold": [0, 0, 0, 0, 1, 0, 0],
-    "BP_Clear": [0, 0, 0, 0, 0, 1, 0],
-    "SP_Clear": [0, 0, 0, 0, 0, 0, 1],
+    "NP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "BP_Init": [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "SP_Init": [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    "BP_Hold": [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    "SP_Hold": [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+    "BP_Clear": [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+    "SP_Clear": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+    "UK_BP_Hold": [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    "UK_SP_Hold": [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+    "UK_BP_Clear": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+    "UK_SP_Clear": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
 }
 
 
@@ -113,6 +117,7 @@ if __name__ == "__main__":
     data_reader_instance = DataReader(
         raw_filename_min="./src/local_data/raw/dax_tm3.csv",
         pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+        debug=False,
     )
 
     train_agent = Agent(

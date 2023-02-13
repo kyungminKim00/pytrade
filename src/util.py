@@ -3,34 +3,32 @@
 @author: kim KyungMin
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-from contextlib import contextmanager
-import time
 import collections
-import numpy as np
-import pickle
-import modin.pandas as pd
-import os
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-# from sklearn.externals import joblib
-import joblib
-import cloudpickle
-import json
 import datetime
+import glob
+import json
+import os
+import pickle
+import shutil
+import sys
+import time
+from contextlib import contextmanager
+from itertools import groupby
 
 # from memory_profiler import profile
 from operator import itemgetter
-from itertools import groupby
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import cloudpickle
+
+# from sklearn.externals import joblib
+import joblib
+import modin.pandas as pd
+import numpy as np
 import sklearn.metrics as metrics
-import collections
-import sys
 from PIL import Image
-import glob
-import shutil
 
 
 def get_min_range(interval: int) -> Dict[int, int]:
@@ -156,9 +154,9 @@ def nanTozero(result):
 # time check
 @contextmanager
 def funTime(func_name):
-    start = time.clock()
+    start = time.time()
     yield
-    end = time.clock()
+    end = time.time()
     interval = end - start
     print("\n== Time cost for [{0}] : {1}".format(func_name, interval))
 
