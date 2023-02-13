@@ -60,8 +60,7 @@ class DataReader:
         print("Pivot Data Ready: OK")
 
         analyse_data = pd.merge(raw_data, pv_data, how="inner", on="date")
-        analyse_data["idx"] = np.arange(analyse_data.shape[0])
-        analyse_data.set_index("idx", inplace=True)
+        analyse_data.set_index(raw_data.index, inplace=True)
         analyse_data["date"] = pd.to_datetime(analyse_data.date)
         print("Analyse Data Ready: OK")
 
