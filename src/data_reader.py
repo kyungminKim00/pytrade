@@ -1,4 +1,5 @@
 # from abc import ABC, abstractmethod
+from collections import OrderedDict
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -9,10 +10,8 @@ import ray
 from attributes import (
     confidence_candle_1,
     confidence_spread_candle,
-    spread,
     spread_close_ma,
     spread_close_maginot,
-    spread_parallel,
 )
 from quantile_discretizer import encode
 from refine_raw import Refine
@@ -33,6 +32,7 @@ class DataReader:
         self._debug = debug
         self._candle_size = candle_size
         self._w_size = w_size
+        self._sample_dict = OrderedDict()
 
         # 전체 데이터(입력 csv)의 전처리 데이터
         self.processed_data = self._pre_process(
@@ -139,37 +139,28 @@ class DataReader:
         )
 
     def sampler(self, query_idx: int, n_pre_trajectory: int = 0, sampler: str = None):
+        dict_key = f"{query_idx}_{n_pre_trajectory}"
         if sampler == "nmt_sampler_train":
-            # return _nmt_sampler(self.processed_data, query_idx, n_pre_trajectory)
-            return _nmt_sampler((self.processed_data, query_idx, n_pre_trajectory))
-        assert False, "Invalid sampler"
+            fun_sampler = nmt_sampler
+        elif sampler == "nmt_sampler_valid":
+            fun_sampler = nmt_sampler
+        elif sampler == "nmt_sampler_inference":
+            fun_sampler = nmt_sampler
+
+        else:
+            assert False, "Invalid sampler"
+
+        try:
+            return self._sample_dict[dict_key]
+        except KeyError:
+            self._sample_dict[dict_key] = fun_sampler(
+                self.processed_data, query_idx, n_pre_trajectory
+            )
+            return self._sample_dict[dict_key]
 
 
-# @lru_cache(maxsize=None)
-# def _nmt_sampler(
-#     processed_data: pd.DataFrame, query_idx: int, n_pre_trajectory: int = 0
-# ):
-#     loc = processed_data.index.get_loc(query_idx)
-#     return encode(processed_data.iloc[loc - n_pre_trajectory : loc + 1])
-
-
-import hashlib
-
-
-@lru_cache(maxsize=None)
-def _nmt_sampler(processed_data_hash: str, query_idx: int, n_pre_trajectory: int = 0):
-    processed_data = df_dict[processed_data_hash]
+def nmt_sampler(
+    processed_data: pd.DataFrame, query_idx: int, n_pre_trajectory: int = 0
+):
     loc = processed_data.index.get_loc(query_idx)
     return encode(processed_data.iloc[loc - n_pre_trajectory : loc + 1])
-
-
-df_dict = {}
-
-
-def nmt_sampler(processed_data, query_idx, n_pre_trajectory=0):
-    processed_data_hash = hashlib.sha224(
-        processed_data.to_csv().encode("utf-8")
-    ).hexdigest()
-    if processed_data_hash not in df_dict:
-        df_dict[processed_data_hash] = processed_data
-    return _nmt_sampler(processed_data_hash, query_idx, n_pre_trajectory)

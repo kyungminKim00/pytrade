@@ -42,8 +42,12 @@ class Agent:
             self.n_pre_trajectory = 0  # 기준일 데이터 이외에 몇개의 과거 샘플을 사용할 것인가?
         elif mode == "validation":
             self.idx_list = data_reader.validation_idx.copy()
+            self.sampler = "nmt_sampler_valid"  # 사용할 샘플러
+            self.n_pre_trajectory = 0  # 기준일 데이터 이외에 몇개의 과거 샘플을 사용할 것인가?
         elif mode == "inference":
             self.idx_list = data_reader.inference_idx.copy()
+            self.sampler = "nmt_sampler_inference"  # 사용할 샘플러
+            self.n_pre_trajectory = 0  # 기준일 데이터 이외에 몇개의 과거 샘플을 사용할 것인가?
         else:
             raise ValueError("Invalid mode")
 
