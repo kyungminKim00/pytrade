@@ -4,8 +4,16 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import modin.pandas as pd
 import numpy as np
+import ray
 
-from attributes import spread, spread_parallel
+from attributes import (
+    confidence_candle_1,
+    confidence_spread_candle,
+    spread,
+    spread_close_ma,
+    spread_close_maginot,
+    spread_parallel,
+)
 from quantile_discretizer import encode
 from refine_raw import Refine
 from util import funTime, print_c
@@ -50,6 +58,7 @@ class DataReader:
     @funTime("pre_process - step 1")
     def _read_analyse_data(self, raw_filename_min, pivot_filename_day) -> pd.DataFrame:
         print_c("\n분봉/일봉/피봇(일봉) 데이터는 준비 되어 있어야 함!!!")
+
         raw_data = Refine(
             raw_filename_min,
             params={"candle_size": self._candle_size, "w_size": self._w_size},
@@ -124,80 +133,42 @@ class DataReader:
 
     @funTime("pre_process - step 2")
     def _pre_process(self, analyse_data) -> pd.DataFrame:
-        import itertools
-
-        import ray
-
+        # 선언문 위치 옮기지 말것
+        # 공용 데이터와(mp), single cpu를 위한 Data 독립적으로 유지 하여 적은 데이터 사이즈에서 특징을 생성 하도록 함
+        analyse_data_ref = ray.put(analyse_data)
         processed_data = pd.DataFrame()
 
-        # 변수 생성: (종가 - 이동평균)/이동평균
-        spread_futures = []
-        for candle_size in self._candle_size:
-            for w_size in self._w_size:
-                f_prc = "close"
-                i_prc = f"candle{candle_size}_ma{w_size}"
-                spread_futures.append(
-                    spread_parallel.remote(analyse_data, f_prc, i_prc)
-                )
+        """ Parallelizes Spread Function Calculations and store the results in respective columns of Processed data
+        변수 생성: (종가 - 이동평균)/이동평균
+        변수 생성: 일봉기준 (종가 - 마지노선)/마지노선
+        변수 생성: 1분봉의 컨피던스
+        변수 생성:
+            1. 각 n분봉의 컨피던스
+                (현재고가 - 현재종가)/현재종가
+                (현재저가 - 현재종가)/현재종가
+            2.  (이전 n분봉의 종가 - 현재종가)/현재종가
+                이전 n분봉의 종가 == 현재 n분봉의 시가 이므로 (이전 n분봉의 종가 - 현재종가)/현재종가 -> (현재 n분봉의 시가 - 현재종가)/현재종가 
+        """
+        processed_data = spread_close_ma(
+            processed_data, analyse_data_ref, self._candle_size, self._w_size
+        )
+        processed_data = spread_close_maginot(processed_data, analyse_data_ref)
+        processed_data = confidence_candle_1(processed_data, analyse_data_ref)
+        processed_data = confidence_spread_candle(
+            processed_data,
+            analyse_data_ref,
+            self._candle_size[1:],
+        )
+        # 메모리 해제
+        del analyse_data_ref
 
-        for i, (candle_size, w_size) in enumerate(
-            itertools.product(self._candle_size, self._w_size)
-        ):
-            f_prc = "close"
-            i_prc = f"candle{candle_size}_ma{w_size}"
-            processed_data[f"{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
-
-        # 변수 생성: 일봉기준 (종가 - 마지노선)/마지노선
-        spread_futures = []
-        for i_prc in [
-            "10_lower_maginot",
-            "10_upper_maginot",
-            "20_lower_maginot",
-            "20_upper_maginot",
-            "50_lower_maginot",
-            "50_upper_maginot",
-        ]:
-            f_prc = "close"
-            spread_futures.append(spread_parallel.remote(analyse_data, f_prc, i_prc))
-
-        for i, i_prc in enumerate(
-            [
-                "10_lower_maginot",
-                "10_upper_maginot",
-                "20_lower_maginot",
-                "20_upper_maginot",
-                "50_lower_maginot",
-                "50_upper_maginot",
-            ]
-        ):
-            f_prc = "close"
-            processed_data[f"{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
-
-        # 변수 생성: 1분봉의 컨피던스
-        for i_prc in ["high", "low"]:
-            f_prc = "close"
-            processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-
-        # 변수 생성: 각 분봉의 컨피던스, (이전 분봉의 종가 - 현재종가)/현재종가
-        for candle_size in self._candle_size[1:]:
-            for i_prc in ["high", "low"]:
-                i_prc = f"{candle_size}mins_{i_prc}"
-                f_prc = "close"
-                processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-            # 분봉의 시가 == 이전 분봉의 종가
-            i_prc = f"{candle_size}mins_open"
-            processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-        # 변수 생성: 1 Forward return
+        # single cpu
         processed_data["y_rtn_close"] = analyse_data["close"].pct_change()
-
-        # 추가 변수 타임 스템프
         processed_data["hours"] = analyse_data["hours"]
         processed_data["mins"] = analyse_data["mins"]
         processed_data["date"] = analyse_data["date"]
         processed_data["datetime"] = analyse_data["datetime"]
         processed_data["close"] = analyse_data["close"]
-
-        # 추가
         processed_data["mark"] = analyse_data["mark"]
 
         return processed_data

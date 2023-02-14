@@ -1,3 +1,4 @@
+import itertools
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import bottleneck as bn
@@ -172,6 +173,80 @@ from util import print_c
 # return f"{sub_window_size}mins", data
 
 
+# @ray.remote
+# def ops(r_pd, candle_size, w_size):
+#     identifier = f"candle{candle_size}_datetime"
+#     r_pd[identifier] = r_pd["datetime"].dt.floor(f"{candle_size}T")
+
+#     # 캔들에 대응 하는 매분 업데이트 데이터 (예. 3분봉의 매분 업데이트 데이터)
+#     if candle_size > 1:
+#         # (시가) 캔들의 시초가 (캔들의 시초가는 해당 시간내 변하지 않는 값)
+#         candle_open = r_pd.groupby(identifier)["open"].apply(lambda x: x.iloc[0])
+#         candle_open.name = f"{candle_size}mins_open"
+#         r_pd = r_pd.join(candle_open, on=identifier, how="outer")
+
+#         # (고가) 매분 갱신되는 캔들의 데이터 (최대값 갱신)
+#         candle_high = r_pd.groupby(identifier)["high"].apply(lambda x: x.cummax())
+#         candle_high.name = f"{candle_size}mins_high"
+#         r_pd = r_pd.join(candle_high, how="inner")
+
+#         # (저가) 매분 갱신되는 캔들의 데이터 (최소값 갱신)
+#         candle_low = r_pd.groupby(identifier)["low"].apply(lambda x: x.cummin())
+#         candle_low.index.name = identifier
+#         candle_low.name = f"{candle_size}mins_low"
+#         r_pd = r_pd.join(candle_low, how="inner")
+
+#         # (종가) 매분 갱신되는 캔들의 데이터 (최신 종가가 캔들의 종가)
+#         r_pd[f"{candle_size}mins_close"] = r_pd["close"]
+
+#     # 각 캔들에 대응하는 이동평균 데이터
+#     g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
+#     data = r_pd.groupby(identifier)["close"].apply(lambda x: x.iloc[-1])
+#     moving_avg = data.rolling(window=w_size).mean()
+#     moving_avg.name = g_candle
+#     moving_avg = moving_avg.to_frame()
+#     r_pd = r_pd.join(moving_avg, on=identifier, how="outer")
+
+#     return r_pd
+
+
+# def ops(r_pd, candle_size, w_size):
+#     identifier = f"candle{candle_size}_datetime"
+#     r_pd[identifier] = r_pd["datetime"].dt.floor(f"{candle_size}T")
+
+#     r_pd_group_by = r_pd.groupby(identifier)
+#     # 캔들에 대응 하는 매분 업데이트 데이터 (예. 3분봉의 매분 업데이트 데이터)
+#     if candle_size > 1:
+#         # (시가) 캔들의 시초가 (캔들의 시초가는 해당 시간내 변하지 않는 값)
+#         candle_open = r_pd_group_by["open"].apply(lambda x: x.iloc[0])
+#         candle_open.name = f"{candle_size}mins_open"
+#         r_pd = r_pd.join(candle_open, on=identifier, how="outer")
+
+#         # (고가) 매분 갱신되는 캔들의 데이터 (최대값 갱신)
+#         candle_high = r_pd_group_by["high"].apply(lambda x: x.cummax())
+#         candle_high.name = f"{candle_size}mins_high"
+#         r_pd = r_pd.join(candle_high, how="inner")
+
+#         # (저가) 매분 갱신되는 캔들의 데이터 (최소값 갱신)
+#         candle_low = r_pd_group_by["low"].apply(lambda x: x.cummin())
+#         candle_low.index.name = identifier
+#         candle_low.name = f"{candle_size}mins_low"
+#         r_pd = r_pd.join(candle_low, how="inner")
+
+#         # (종가) 매분 갱신되는 캔들의 데이터 (최신 종가가 캔들의 종가)
+#         r_pd[f"{candle_size}mins_close"] = r_pd["close"]
+
+#     # 각 캔들에 대응하는 이동평균 데이터
+#     g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
+#     data = r_pd_group_by["close"].apply(lambda x: x.iloc[-1])
+#     moving_avg = data.rolling(window=w_size).mean()
+#     moving_avg.name = g_candle
+#     moving_avg = moving_avg.to_frame()
+#     r_pd = r_pd.join(moving_avg, on=identifier, how="outer")
+
+#     # return r_pd
+
+
 class Refine:
     def __init__(
         self,
@@ -200,15 +275,12 @@ class Refine:
         r_pd = r_pd[-35000:]
         print_c("Reduce the size of raw data - Remove this section")
 
-        # hours and minutes
+        # generate datetime
         r_pd["hours"] = r_pd["time"].str[:-2]
         r_pd["mins"] = r_pd["time"].str[-2:]
-
-        # generate datetime
         r_pd["datetime"] = pd.to_datetime(
             r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
         )
-
         # 인덱스 설정
         r_pd.set_index("datetime", inplace=True, drop=False)
 
@@ -321,45 +393,26 @@ class Refine:
             identifier = f"candle{candle_size}_datetime"
             r_pd[identifier] = r_pd["datetime"].dt.floor(f"{candle_size}T")
 
+            r_pd_group_by = r_pd.groupby(identifier)[["open", "high", "low", "close"]]
+            # r_pd_group_by = r_pd.groupby(identifier)
+
             # 캔들에 대응 하는 매분 업데이트 데이터 (예. 3분봉의 매분 업데이트 데이터)
             if candle_size > 1:
                 # (시가) 캔들의 시초가 (캔들의 시초가는 해당 시간내 변하지 않는 값)
-                candle_open = r_pd.groupby(identifier)["open"].apply(
-                    lambda x: x.iloc[0]
-                )
+                candle_open = r_pd_group_by["open"].apply(lambda x: x.iloc[0])
                 candle_open.name = f"{candle_size}mins_open"
                 r_pd = r_pd.join(candle_open, on=identifier, how="outer")
 
                 # (고가) 매분 갱신되는 캔들의 데이터 (최대값 갱신)
-                # candle_high = r_pd.groupby(identifier)["high"].cummax()
-
-                candle_high = r_pd.groupby(identifier)["high"].apply(
-                    lambda x: x.cummax()
-                )
+                candle_high = r_pd_group_by["high"].apply(lambda x: x.cummax())
                 candle_high.name = f"{candle_size}mins_high"
                 r_pd = r_pd.join(candle_high, how="inner")
 
-                # candle_high = r_pd.groupby(identifier).apply(
-                #     lambda x: x["high"].cummax()
-                # )
-                # candle_high.reset_index(identifier, drop=True, inplace=True)
-                # candle_high.rename(
-                #     columns={"high": f"{candle_size}mins_high"}, inplace=True
-                # )
-                # r_pd = r_pd.join(candle_high, how="inner")
-
                 # (저가) 매분 갱신되는 캔들의 데이터 (최소값 갱신)
-                candle_low = r_pd.groupby(identifier)["low"].apply(lambda x: x.cummin())
+                candle_low = r_pd_group_by["low"].apply(lambda x: x.cummin())
                 candle_low.index.name = identifier
                 candle_low.name = f"{candle_size}mins_low"
                 r_pd = r_pd.join(candle_low, how="inner")
-
-                # candle_low = r_pd.groupby(identifier).apply(lambda x: x["low"].cummin())
-                # candle_low.reset_index(identifier, drop=True, inplace=True)
-                # candle_low.rename(
-                #     columns={"low": f"{candle_size}mins_low"}, inplace=True
-                # )
-                # r_pd = r_pd.join(candle_low, how="inner")
 
                 # (종가) 매분 갱신되는 캔들의 데이터 (최신 종가가 캔들의 종가)
                 r_pd[f"{candle_size}mins_close"] = r_pd["close"]
@@ -367,26 +420,30 @@ class Refine:
             # 각 캔들에 대응하는 이동평균 데이터
             for w_size in self._w_size:
                 g_candle = f"candle{str(candle_size)}_ma{str(w_size)}"
-                data = r_pd.groupby(identifier)["close"].apply(lambda x: x.iloc[-1])
+                data = r_pd_group_by["close"].apply(lambda x: x.iloc[-1])
                 moving_avg = data.rolling(window=w_size).mean()
                 moving_avg.name = g_candle
                 moving_avg = moving_avg.to_frame()
                 r_pd = r_pd.join(moving_avg, on=identifier, how="outer")
 
-        # # old version
-        # res = ray.get(
-        #     [
-        #         mp_moving_averages.remote(r_pd["close"].values, w_size, candle_size)
-        #         for candle_size in self._candle_size
-        #         for w_size in self._w_size
-        #     ]
-        # )
-        # for k, v in res:
-        #     r_pd[k] = v
-
         r_pd = r_pd.dropna(axis=0)
         print("Refine candle prices: Done")
         return r_pd
+
+    # def _generate_candle_price(self, r_pd: pd.DataFrame) -> pd.DataFrame:
+    #     # Tip: 캔들의 시작에 데이터 수집이 유리 함 (예. 1분 1초)
+
+    #     print(f"111: {r_pd.columns}")
+    #     # case: candle_size = 5min, moving_averages = 9
+    #     for i, (candle_size, w_size) in enumerate(
+    #         itertools.product(self._candle_size, self._w_size)
+    #     ):
+    #         ops(r_pd, candle_size, w_size)
+    #     print(f"222: {r_pd.columns}")
+
+    #     r_pd = r_pd.dropna(axis=0)
+    #     print("Refine candle prices: Done")
+    #     return r_pd
 
     def pd_formatting(self, data):
         data.rename(
