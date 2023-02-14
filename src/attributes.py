@@ -50,7 +50,7 @@ def spread_close_ma(
     for i, (candle_size, w_size) in enumerate(itertools.product(_candle_size, _w_size)):
         f_prc = "close"
         i_prc = f"candle{candle_size}_ma{w_size}"
-        processed_data[f"{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
+        processed_data[f"spd_{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
 
     return processed_data
 
@@ -83,7 +83,7 @@ def spread_close_maginot(
         ]
     ):
         f_prc = "close"
-        processed_data[f"{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
+        processed_data[f"spd_{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
 
     return processed_data
 
@@ -100,7 +100,7 @@ def confidence_candle_1(
 
     for i, i_prc in enumerate(["high", "low"]):
         f_prc = "close"
-        processed_data[f"{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
+        processed_data[f"spd_{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
 
     return processed_data
 
@@ -128,6 +128,6 @@ def confidence_spread_candle(
     ):
         i_prc = f"{candle_size}mins_{w_size}"
         f_prc = "close"
-        processed_data[f"{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
+        processed_data[f"spd_{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
 
     return processed_data

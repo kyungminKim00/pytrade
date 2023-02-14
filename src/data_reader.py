@@ -63,73 +63,21 @@ class DataReader:
             raw_filename_min,
             params={"candle_size": self._candle_size, "w_size": self._w_size},
         ).raw
-        print("Raw Data Ready: OK")
+        print_c("Raw Data Ready: OK")
 
         pv_data = pd.read_csv(pivot_filename_day)
-        print("Pivot Data Ready: OK")
+        print_c("Pivot Data Ready: OK")
 
         analyse_data = pd.merge(raw_data, pv_data, how="inner", on="date")
         analyse_data.set_index(raw_data.index, inplace=True)
         analyse_data["date"] = pd.to_datetime(analyse_data.date)
-        print("Analyse Data Ready: OK")
+        print_c("Analyse Data Ready: OK")
 
         if self._debug:
             analyse_data.to_csv("./assets/analyse_data.csv")
-            print("Export analyse_data: OK")
+            print_c("Export analyse_data: OK")
 
         return analyse_data
-
-    # @funTime("pre_process - step 2")
-    # def _pre_process(self, analyse_data) -> pd.DataFrame:
-    #     processed_data = pd.DataFrame()
-
-    #     # 변수 생성: (종가 - 이동평균)/이동평균
-    #     for candle_size in self._candle_size:
-    #         for w_size in self._w_size:
-    #             f_prc = "close"
-    #             i_prc = f"candle{candle_size}_ma{w_size}"
-    #             processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-
-    #     # 변수 생성: 일봉기준 (종가 - 마지노선)/마지노선
-    #     for i_prc in [
-    #         "10_lower_maginot",
-    #         "10_upper_maginot",
-    #         "20_lower_maginot",
-    #         "20_upper_maginot",
-    #         "50_lower_maginot",
-    #         "50_upper_maginot",
-    #     ]:
-    #         f_prc = "close"
-    #         processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-
-    #     # 변수 생성: 1분봉의 컨피던스
-    #     for i_prc in ["high", "low"]:
-    #         f_prc = "close"
-    #         processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-
-    #     # 변수 생성: 각 분봉의 컨피던스, (이전 분봉의 종가 - 현재종가)/현재종가
-    #     for candle_size in self._candle_size[1:]:
-    #         for i_prc in ["high", "low"]:
-    #             i_prc = f"{candle_size}mins_{i_prc}"
-    #             f_prc = "close"
-    #             processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-    #         # 분봉의 시가 == 이전 분봉의 종가
-    #         i_prc = f"{candle_size}mins_open"
-    #         processed_data[f"{f_prc}_{i_prc}"] = spread(analyse_data, f_prc, i_prc)
-    #     # 변수 생성: 1 Forward return
-    #     processed_data["y_rtn_close"] = analyse_data["close"].pct_change()
-
-    #     # 추가 변수 타임 스템프
-    #     processed_data["hours"] = analyse_data["hours"]
-    #     processed_data["mins"] = analyse_data["mins"]
-    #     processed_data["date"] = analyse_data["date"]
-    #     processed_data["datetime"] = analyse_data["datetime"]
-    #     processed_data["close"] = analyse_data["close"]
-
-    #     # 추가
-    #     processed_data["mark"] = analyse_data["mark"]
-
-    #     return processed_data
 
     @funTime("pre_process - step 2")
     def _pre_process(self, analyse_data) -> pd.DataFrame:
@@ -190,13 +138,38 @@ class DataReader:
             sorted(list(set.intersection(set(inference_idx), set(determinable_idx)))),
         )
 
-    def sampler(self, query_idx: int, n_sample: int = 0, sampler: str = None):
+    def sampler(self, query_idx: int, n_pre_trajectory: int = 0, sampler: str = None):
         if sampler == "nmt_sampler_train":
-            return _nmt_sampler(self.processed_data, query_idx, n_sample)
+            # return _nmt_sampler(self.processed_data, query_idx, n_pre_trajectory)
+            return _nmt_sampler((self.processed_data, query_idx, n_pre_trajectory))
         assert False, "Invalid sampler"
 
 
+# @lru_cache(maxsize=None)
+# def _nmt_sampler(
+#     processed_data: pd.DataFrame, query_idx: int, n_pre_trajectory: int = 0
+# ):
+#     loc = processed_data.index.get_loc(query_idx)
+#     return encode(processed_data.iloc[loc - n_pre_trajectory : loc + 1])
+
+
+import hashlib
+
+
 @lru_cache(maxsize=None)
-def _nmt_sampler(processed_data, query_idx: int, n_pre_trajectory: int = 0):
+def _nmt_sampler(processed_data_hash: str, query_idx: int, n_pre_trajectory: int = 0):
+    processed_data = df_dict[processed_data_hash]
     loc = processed_data.index.get_loc(query_idx)
     return encode(processed_data.iloc[loc - n_pre_trajectory : loc + 1])
+
+
+df_dict = {}
+
+
+def nmt_sampler(processed_data, query_idx, n_pre_trajectory=0):
+    processed_data_hash = hashlib.sha224(
+        processed_data.to_csv().encode("utf-8")
+    ).hexdigest()
+    if processed_data_hash not in df_dict:
+        df_dict[processed_data_hash] = processed_data
+    return _nmt_sampler(processed_data_hash, query_idx, n_pre_trajectory)

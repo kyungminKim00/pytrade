@@ -29,10 +29,7 @@ class Agent:
         mode: str = None,
         data_reader: DataReader = None,
     ) -> None:
-        # super().__init__(
-        #     raw_filename_min=raw_filename_min,
-        #     pivot_filename_day=pivot_filename_day,
-        # )
+
         self._mode = mode
         self._data_reader = data_reader
         self._previous_action = actions["NP"]  # 관측 액션: T-1 시점의 액션
@@ -41,6 +38,8 @@ class Agent:
 
         if mode == "train":
             self.idx_list = data_reader.train_idx.copy()
+            self.sampler = "nmt_sampler_train"  # 사용할 샘플러
+            self.n_pre_trajectory = 0  # 기준일 데이터 이외에 몇개의 과거 샘플을 사용할 것인가?
         elif mode == "validation":
             self.idx_list = data_reader.validation_idx.copy()
         elif mode == "inference":
@@ -98,7 +97,11 @@ class Agent:
     def next(self) -> pd.Series:
         try:
             current_idx = self.idx_list.pop(0)
-            sample = self._data_reader.sampler(current_idx)
+            sample = self._data_reader.sampler(
+                current_idx,
+                n_pre_trajectory=self.n_pre_trajectory,
+                sampler=self.sampler,
+            )
             if self._mode in ("validation", "inference"):
                 self.account = (current_idx, sample)
         except IndexError:
@@ -137,5 +140,3 @@ if __name__ == "__main__":
         data_reader=data_reader_instance,
     )
     inference_agent.next()
-
-    # agent.analyse_data_to_csv("./src/local_data/intermediate/dax_anayse_data.csv")
