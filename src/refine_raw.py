@@ -39,10 +39,13 @@ class Refine:
         print_c("Reduce the size of raw data - Remove this section")
 
         # generate datetime
-        r_pd["hours"] = r_pd["time"].str[:-2]
-        r_pd["mins"] = r_pd["time"].str[-2:]
+        # r_pd["hours"] = r_pd["time"].str[:-2]
+        # r_pd["mins"] = r_pd["time"].str[-2:]
+        # r_pd["datetime"] = pd.to_datetime(
+        #     r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
+        # )
         r_pd["datetime"] = pd.to_datetime(
-            r_pd["date"] + " " + r_pd["hours"] + ":" + r_pd["mins"]
+            r_pd["date"] + " " + r_pd["time"].str[:-2] + ":" + r_pd["time"].str[-2:]
         )
         # 인덱스 설정
         r_pd.set_index("datetime", inplace=True, drop=False)
