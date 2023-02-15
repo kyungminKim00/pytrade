@@ -1,10 +1,7 @@
-# from abc import ABC, abstractmethod
 from collections import OrderedDict
-from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import modin.pandas as pd
-import numpy as np
 import ray
 
 from attributes import (
@@ -13,7 +10,6 @@ from attributes import (
     spread_close_ma,
     spread_close_maginot,
 )
-from quantile_discretizer import encode
 from refine_raw import Refine
 from util import funTime, print_c
 
@@ -32,7 +28,6 @@ class SequentialDataSet:
         self._debug = debug
         self._candle_size = candle_size
         self._w_size = w_size
-        self._sample_dict = OrderedDict()
         self._determinable_candle = determinable_candle
 
         # 전체 데이터(입력 csv)의 전처리 데이터
@@ -157,30 +152,3 @@ class SequentialDataSet:
             sorted(list(set.intersection(set(inference_idx), set(determinable_idx)))),
             inference_data,
         )
-
-    # def sampler(self, query_idx: int, n_pre_trajectory: int = 0, sampler: str = None):
-    #     dict_key = f"{query_idx}_{n_pre_trajectory}"
-    #     if sampler == "nmt_sampler_train":
-    #         fun_sampler = nmt_sampler
-    #     elif sampler == "nmt_sampler_validation":
-    #         fun_sampler = nmt_sampler
-    #     elif sampler == "nmt_sampler_inference":
-    #         fun_sampler = nmt_sampler
-
-    #     else:
-    #         assert False, "Invalid sampler"
-
-    #     try:
-    #         return self._sample_dict[dict_key]
-    #     except KeyError:
-    #         self._sample_dict[dict_key] = fun_sampler(
-    #             self.processed_data, query_idx, n_pre_trajectory
-    #         )
-    #         return self._sample_dict[dict_key]
-
-
-# def nmt_sampler(
-#     processed_data: pd.DataFrame, query_idx: int, n_pre_trajectory: int = 0
-# ):
-#     loc = processed_data.index.get_loc(query_idx)
-#     return encode(processed_data.iloc[loc - n_pre_trajectory : loc + 1])
