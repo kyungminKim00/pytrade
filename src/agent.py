@@ -6,7 +6,7 @@ import modin.pandas as pd
 import numpy as np
 from pytorch_forecasting.data import TimeSeriesDataSet
 
-from data_reader import SequentialDataSet
+from preprocess import SequentialDataSet
 from util import print_c
 
 actions = {
