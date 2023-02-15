@@ -27,6 +27,7 @@ class Refine:
 
         self._candle_size = params["candle_size"]
         self._w_size = params["w_size"]
+        self._determinable_candle = params["determinable_candle"]
         self._raw = self._refine_process(r_pd)
 
     @property
@@ -54,7 +55,7 @@ class Refine:
         r_pd = self._generate_candle_price(r_pd)
 
         # 3분봉 기준 의사결정 가능
-        r_pd = self._mark_determinable(r_pd)
+        r_pd = self._mark_determinable(r_pd, self._determinable_candle)
 
         return r_pd
 

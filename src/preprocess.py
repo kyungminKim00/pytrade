@@ -27,12 +27,13 @@ class SequentialDataSet:
         debug: bool = False,
         candle_size: Tuple[int] = (1, 3, 5, 15, 60, 240),
         w_size: Tuple[int] = (9, 50, 100),
+        determinable_candle: int = 3,
     ) -> None:
-
         self._debug = debug
         self._candle_size = candle_size
         self._w_size = w_size
         self._sample_dict = OrderedDict()
+        self._determinable_candle = determinable_candle
 
         # 전체 데이터(입력 csv)의 전처리 데이터
         self.processed_data = self._pre_process(
@@ -67,7 +68,11 @@ class SequentialDataSet:
 
         raw_data = Refine(
             raw_filename_min,
-            params={"candle_size": self._candle_size, "w_size": self._w_size},
+            params={
+                "candle_size": self._candle_size,
+                "w_size": self._w_size,
+                "determinable_candle": self._determinable_candle,
+            },
         ).raw
         print_c("Raw Data Ready: OK")
 
@@ -125,6 +130,9 @@ class SequentialDataSet:
         processed_data["close"] = analyse_data["close"]
         processed_data["mark"] = analyse_data["mark"]
 
+        # additional data
+        processed_data["assets"] = "dax"
+
         return processed_data
 
     def _idx_split(self, determinable_idx) -> List:
@@ -152,29 +160,29 @@ class SequentialDataSet:
             inference_data,
         )
 
-    def sampler(self, query_idx: int, n_pre_trajectory: int = 0, sampler: str = None):
-        dict_key = f"{query_idx}_{n_pre_trajectory}"
-        if sampler == "nmt_sampler_train":
-            fun_sampler = nmt_sampler
-        elif sampler == "nmt_sampler_validation":
-            fun_sampler = nmt_sampler
-        elif sampler == "nmt_sampler_inference":
-            fun_sampler = nmt_sampler
+    # def sampler(self, query_idx: int, n_pre_trajectory: int = 0, sampler: str = None):
+    #     dict_key = f"{query_idx}_{n_pre_trajectory}"
+    #     if sampler == "nmt_sampler_train":
+    #         fun_sampler = nmt_sampler
+    #     elif sampler == "nmt_sampler_validation":
+    #         fun_sampler = nmt_sampler
+    #     elif sampler == "nmt_sampler_inference":
+    #         fun_sampler = nmt_sampler
 
-        else:
-            assert False, "Invalid sampler"
+    #     else:
+    #         assert False, "Invalid sampler"
 
-        try:
-            return self._sample_dict[dict_key]
-        except KeyError:
-            self._sample_dict[dict_key] = fun_sampler(
-                self.processed_data, query_idx, n_pre_trajectory
-            )
-            return self._sample_dict[dict_key]
+    #     try:
+    #         return self._sample_dict[dict_key]
+    #     except KeyError:
+    #         self._sample_dict[dict_key] = fun_sampler(
+    #             self.processed_data, query_idx, n_pre_trajectory
+    #         )
+    #         return self._sample_dict[dict_key]
 
 
-def nmt_sampler(
-    processed_data: pd.DataFrame, query_idx: int, n_pre_trajectory: int = 0
-):
-    loc = processed_data.index.get_loc(query_idx)
-    return encode(processed_data.iloc[loc - n_pre_trajectory : loc + 1])
+# def nmt_sampler(
+#     processed_data: pd.DataFrame, query_idx: int, n_pre_trajectory: int = 0
+# ):
+#     loc = processed_data.index.get_loc(query_idx)
+#     return encode(processed_data.iloc[loc - n_pre_trajectory : loc + 1])
