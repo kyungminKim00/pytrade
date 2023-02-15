@@ -9,4 +9,17 @@
         "source.organizeImports": true
     },
     "files.autoSave": "onFocusChange",
+    "extensions": [
+        "donjayamanne.python-extension-pack",
+        "trixnz.go-to-method",
+        "GitHub.vscode-pull-request-github",
+        "magicstack.MagicPython",
+        "msrvida.vscode-sanddance",
+        "ms-toolsai.jupyter",
+        "GrapeCity.gc-excelviewer",
+        "tabnine.tabnine-vscode",
+        "formulahendry.code-runner",
+        "tabnine.tabnine-vscode",
+        "formulahendry.code-runner"
+    ]
 }
