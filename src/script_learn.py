@@ -44,7 +44,7 @@ class DateReader(Dataset):
 
         if self._sample_dict.get(dict_key) is None:
             query_date = self._determinable_idx[idx]
-            loc = self.df.get_loc(query_date)
+            loc = self.df.index.get_loc(query_date)
 
             if loc <= self._max_trajectory_length + 1:
                 loc = random.randint(
