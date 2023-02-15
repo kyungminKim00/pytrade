@@ -62,3 +62,4 @@ train_data = DateReader(
     sequence_length=None,
     custom_index=sequential_data.train_idx,
 )
+print(train_data)
