@@ -4,8 +4,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import modin.pandas as pd
 import numpy as np
+from pytorch_forecasting.data import TimeSeriesDataSet
 
-from data_reader import DataReader
+from data_reader import SequentialDataSet
 from util import print_c
 
 actions = {
@@ -27,7 +28,7 @@ class Agent:
     def __init__(
         self,
         mode: str = None,
-        data_reader: DataReader = None,
+        data_reader: TimeSeriesDataSet = None,
     ) -> None:
 
         self._mode = mode
@@ -42,7 +43,7 @@ class Agent:
             self.n_pre_trajectory = 0  # 기준일 데이터 이외에 몇개의 과거 샘플을 사용할 것인가?
         elif mode == "validation":
             self.idx_list = data_reader.validation_idx.copy()
-            self.sampler = "nmt_sampler_valid"  # 사용할 샘플러
+            self.sampler = "nmt_sampler_validation"  # 사용할 샘플러
             self.n_pre_trajectory = 0  # 기준일 데이터 이외에 몇개의 과거 샘플을 사용할 것인가?
         elif mode == "inference":
             self.idx_list = data_reader.inference_idx.copy()
@@ -121,11 +122,14 @@ class Agent:
 
 if __name__ == "__main__":
     # 데이터 리더 생성
-    data_reader_instance = DataReader(
+    sequential_data = SequentialDataSet(
         raw_filename_min="./src/local_data/raw/dax_tm3.csv",
         pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
         debug=False,
     )
+    train_data = sequential_data.train_data
+    validation_data = sequential_data.validation_data
+    inference_data = sequential_data.inference_data
 
     train_agent = Agent(
         mode="train",

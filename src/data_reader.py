@@ -18,7 +18,7 @@ from refine_raw import Refine
 from util import funTime, print_c
 
 
-class DataReader:
+class SequentialDataSet:
     def __init__(
         self,
         raw_filename_min: str = None,
@@ -43,11 +43,17 @@ class DataReader:
         self.total_samples = self.processed_data.shape[0]  # 학습/검증/테스트 전체 샘플 수
         self._determinable_idx = list(self.processed_data.query("mark == True").index)
         if experimental_mode:
-            self.train_idx, self.validation_idx, self.inference_idx = self._idx_split(
-                self._determinable_idx
-            )
+            (
+                self.train_idx,
+                self.train_data,
+                self.validation_idx,
+                self.validation_data,
+                self.inference_idx,
+                self.inference_data,
+            ) = self._idx_split(self._determinable_idx)
         else:  # 운영모드 or 전체 데이터가 테스트 데이터인 경우
             self.inference_idx = self._determinable_idx
+            self.inference_data = self.processed_data
 
         self.n_train, self.n_validation, self.n_inference = (
             len(self.train_idx),
@@ -125,24 +131,32 @@ class DataReader:
         # 70% 비율로 Seen/Un-seen 데이터 분할, 80% 비율로 학습/검증 데이터 분할
         unseen_loc = int(self.total_samples * 0.7)
         seen_loc = self.total_samples - unseen_loc
-        train_valid_loc = int(seen_loc * 0.8)
+        train_validation_loc = int(seen_loc * 0.8)
 
-        inference_idx = list(self.processed_data.iloc[unseen_loc:].index)
-        train_idx = list(self.processed_data.iloc[:train_valid_loc].index)
-        valid_idx = list(self.processed_data.iloc[train_valid_loc:].index)
+        inference_data = self.processed_data.iloc[unseen_loc:]
+        inference_idx = list(inference_data.index)
+
+        train_data = self.processed_data.iloc[:train_validation_loc]
+        train_idx = list(train_data.index)
+
+        validation_data = self.processed_data.iloc[train_validation_loc:]
+        validation_idx = list(validation_data.index)
 
         # 데이터 세트 별 determinable index
         return (
             sorted(list(set.intersection(set(train_idx), set(determinable_idx)))),
-            sorted(list(set.intersection(set(valid_idx), set(determinable_idx)))),
+            train_data,
+            sorted(list(set.intersection(set(validation_idx), set(determinable_idx)))),
+            validation_data,
             sorted(list(set.intersection(set(inference_idx), set(determinable_idx)))),
+            inference_data,
         )
 
     def sampler(self, query_idx: int, n_pre_trajectory: int = 0, sampler: str = None):
         dict_key = f"{query_idx}_{n_pre_trajectory}"
         if sampler == "nmt_sampler_train":
             fun_sampler = nmt_sampler
-        elif sampler == "nmt_sampler_valid":
+        elif sampler == "nmt_sampler_validation":
             fun_sampler = nmt_sampler
         elif sampler == "nmt_sampler_inference":
             fun_sampler = nmt_sampler
