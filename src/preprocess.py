@@ -123,8 +123,6 @@ class SequentialDataSet:
 
         # single cpu
         processed_data["y_rtn_close"] = analyse_data["close"].pct_change()
-        processed_data["hours"] = analyse_data["hours"]
-        processed_data["mins"] = analyse_data["mins"]
         processed_data["date"] = analyse_data["date"]
         processed_data["datetime"] = analyse_data["datetime"]
         processed_data["close"] = analyse_data["close"]

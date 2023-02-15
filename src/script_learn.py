@@ -1,6 +1,7 @@
 import random
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import joblib
 import modin.pandas as pd
 import numpy as np
 import torch
@@ -50,13 +51,15 @@ class DateReader(Dataset):
         return X_tensor
 
 
-# 데이터 리더 생성
-sequential_data = SequentialDataSet(
-    raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-    pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
-    debug=False,
-)
+# # 전처리 완료 데이터
+# sequential_data = SequentialDataSet(
+#     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+#     pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+#     debug=False,
+# )
+# joblib.dump(sequential_data, "./src/assets/sequential_data.pkl")
 
+sequential_data = joblib.load("./src/assets/sequential_data.pkl")
 train_data = DateReader(
     df=sequential_data.train_data,
     sequence_length=None,
