@@ -1,127 +1,134 @@
-import pickle
-import warnings
-from pathlib import Path
+import random
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import modin.pandas as pd
 import numpy as np
-import pandas as pd
-import pytorch_lightning as pl
+import ray
 import torch
-from pandas.core.common import SettingWithCopyWarning
-from pytorch_forecasting import EncoderNormalizer, GroupNormalizer, TimeSeriesDataSet
-from pytorch_forecasting.data import NaNLabelEncoder
-from pytorch_forecasting.data.examples import generate_ar_data
-from pytorch_forecasting.metrics import NormalDistributionLoss
-from pytorch_forecasting.models.deepar import DeepAR
-from pytorch_forecasting.utils import profile
-from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor
-from pytorch_lightning.loggers import TensorBoardLogger
+from joblib import dump, load
+from torch.utils.data import DataLoader, Dataset
 
-warnings.simplefilter("error", category=SettingWithCopyWarning)
+from preprocess import SequentialDataSet
+from quantile_discretizer import QuantileDiscretizer
+
+ray.init()
 
 
-data = generate_ar_data(seasonality=10.0, timesteps=400, n_series=100)
-data["static"] = "2"
-data["date"] = pd.Timestamp("2020-01-01") + pd.to_timedelta(data.time_idx, "D")
-validation = data.series.sample(20)
+def decimal_conversion(vector, n_bins):
+    decimal = 0
+    for i, value in enumerate(vector):
+        decimal += value * (n_bins**i)
+    return decimal
 
-max_encoder_length = 60
-max_prediction_length = 20
 
-training_cutoff = data["time_idx"].max() - max_prediction_length
+class DateReader(Dataset):
+    def __init__(
+        self,
+        df,
+        custom_index,
+        sequence_length=None,
+        discretizer_dict=None,
+    ):
 
-training = TimeSeriesDataSet(
-    data[lambda x: ~x.series.isin(validation)],
-    time_idx="time_idx",
-    target="value",
-    categorical_encoders={"series": NaNLabelEncoder().fit(data.series)},
-    group_ids=["series"],
-    static_categoricals=["static"],
-    min_encoder_length=max_encoder_length,
-    max_encoder_length=max_encoder_length,
-    min_prediction_length=max_prediction_length,
-    max_prediction_length=max_prediction_length,
-    time_varying_unknown_reals=["value"],
-    time_varying_known_reals=["time_idx"],
-    target_normalizer=GroupNormalizer(groups=["series"]),
-    add_relative_time_idx=False,
-    add_target_scales=True,
-    randomize_length=None,
+        self._df = df
+        self._determinable_idx = custom_index
+        self._sequence_length = sequence_length
+        self._min_sequence_length = 20
+        self._max_sequence_length = 120
+        self._sample_dict = {}
+
+        self.discretizer = discretizer_dict["discretizer"]
+        self.mean = discretizer_dict["mean"]
+        self.std = discretizer_dict["std"]
+        self.n_bins = discretizer_dict["n_bins"]
+
+    @property
+    def sequence_length(self):
+        if self._sequence_length is None:
+            return random.randint(self._min_sequence_length, self._max_sequence_length)
+        return self._sequence_length
+
+    def __len__(self):
+        return len(self._determinable_idx)
+
+    def __getitem__(self, idx):
+        rcd_sequence_length = self.sequence_length
+        dict_key = f"{idx}_{rcd_sequence_length}"
+
+        if self._sample_dict.get(dict_key) is None:
+            query_date = self._determinable_idx[idx]
+            loc = self._df.index.get_loc(query_date)
+
+            if loc <= self._max_sequence_length + 1:
+                loc = random.randint(
+                    self._max_sequence_length + 1, self._df.shape[0] - 1
+                )
+
+            self._sample_dict[dict_key] = self.encode(
+                self._df.iloc[loc - rcd_sequence_length : loc + 1]
+            )
+
+        X = self._sample_dict[dict_key]
+
+        # convert to PyTorch tensors
+        X_tensor = torch.tensor(X.values, dtype=torch.float)
+        return X_tensor
+
+    # convert the quantized vectors into decimal values
+    def encode(self, df: pd.DataFrame) -> pd.Series:
+        # qd = joblib.load("./assets/discretizer.pkl")
+        # obj_dict = joblib.load("./assets/obj_dict.pkl")
+        obj_dict = {}
+
+        clipped_vectors = df.clip(self.mean - 3 * self.std, self.mean + 3 * self.std)
+
+        # # Convert the quantized vectors into decimal values
+        # decimal_vectors = ray.get(
+        #     [
+        #         str(decimal_conversion.remote(vector, qd.n_bins))
+        #         for vector in qd.quantized_vectors(clipped_vectors)
+        #     ]
+        # )
+        # Convert the quantized vectors into decimal values
+        decimal_vectors = [
+            str(decimal_conversion(vector, self.n_bins))
+            for vector in self.discretizer.transform(clipped_vectors)
+        ]
+
+        def id_from_dict(pttn):
+            max_number = len(obj_dict)
+            key = "_".join(pttn)
+
+            if obj_dict.get(key) is None:
+                p_id = max_number + 1
+                obj_dict[key] = p_id
+                dump(obj_dict, "./assets/obj_dict.pkl")
+            p_id = obj_dict[key]
+
+            return p_id
+
+        pattern_id = list(map(id_from_dict, decimal_vectors))
+
+        return pd.Series(pattern_id, index=df.index)
+
+
+# 전처리 완료 데이터
+sequential_data = SequentialDataSet(
+    raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+    pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+    debug=False,
 )
+dump(sequential_data, "./test.pkl")
+processed_data = load("./test.pkl")
 
-validation = TimeSeriesDataSet.from_dataset(
-    training,
-    data[lambda x: x.series.isin(validation)],
-    # predict=True,
-    stop_randomization=True,
+print(processed_data.train_idx)
+
+train_dataset = DateReader(
+    df=processed_data.train_data,
+    sequence_length=None,
+    custom_index=processed_data.train_idx,
+    discretizer_dict=None,
 )
-batch_size = 64
-train_dataloader = training.to_dataloader(
-    train=True, batch_size=batch_size, num_workers=0
-)
-val_dataloader = validation.to_dataloader(
-    train=False, batch_size=batch_size, num_workers=0
-)
-
-# save datasets
-training.save("training.pkl")
-validation.save("validation.pkl")
-
-early_stop_callback = EarlyStopping(
-    monitor="val_loss", min_delta=1e-4, patience=5, verbose=False, mode="min"
-)
-lr_logger = LearningRateMonitor()
-
-trainer = pl.Trainer(
-    max_epochs=10,
-    gpus=-1,
-    gradient_clip_val=0.1,
-    limit_train_batches=30,
-    limit_val_batches=3,
-    # fast_dev_run=True,
-    # logger=logger,
-    # profiler=True,
-    callbacks=[lr_logger, early_stop_callback],
-)
-
-
-deepar = DeepAR.from_dataset(
-    training,
-    learning_rate=0.1,
-    hidden_size=32,
-    dropout=0.1,
-    loss=NormalDistributionLoss(),
-    log_interval=10,
-    log_val_interval=3,
-    # reduce_on_plateau_patience=3,
-)
-print(f"Number of parameters in network: {deepar.size()/1e3:.1f}k")
-
-# # find optimal learning rate
-# deepar.hparams.log_interval = -1
-# deepar.hparams.log_val_interval = -1
-# trainer.limit_train_batches = 1.0
-# res = trainer.tuner.lr_find(
-#     deepar, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, min_lr=1e-5, max_lr=1e2
-# )
-
-# print(f"suggested learning rate: {res.suggestion()}")
-# fig = res.plot(show=True, suggest=True)
-# fig.show()
-# deepar.hparams.learning_rate = res.suggestion()
-
-torch.set_num_threads(10)
-trainer.fit(
-    deepar,
-    train_dataloaders=train_dataloader,
-    val_dataloaders=val_dataloader,
-)
-
-# calcualte mean absolute error on validation set
-actuals = torch.cat([y for x, (y, weight) in iter(val_dataloader)])
-predictions = deepar.predict(val_dataloader)
-print(f"Mean absolute error of model: {(actuals - predictions).abs().mean()}")
-
-# # plot actual vs. predictions
-# raw_predictions, x = deepar.predict(val_dataloader, mode="raw", return_x=True)
-# for idx in range(10):  # plot 10 examples
-#     deepar.plot_prediction(x, raw_predictions, idx=idx, add_loss_to_title=True)
+dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+for i, x in enumerate(dataloader):
+    print(f"Iteration {i}: x = {x}")

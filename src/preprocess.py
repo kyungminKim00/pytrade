@@ -25,10 +25,20 @@ class SequentialDataSet:
         w_size: Tuple[int] = (9, 50, 100),
         determinable_candle: int = 3,
     ) -> None:
+        ray.shutdown()
+        ray.init()
+
         self._debug = debug
         self._candle_size = candle_size
         self._w_size = w_size
         self._determinable_candle = determinable_candle
+
+        self.train_idx = None
+        self.train_data = None
+        self.validation_idx = None
+        self.validation_data = None
+        self.inference_idx = None
+        self.inference_data = None
 
         # 전체 데이터(입력 csv)의 전처리 데이터
         self.processed_data = self._pre_process(
@@ -36,7 +46,7 @@ class SequentialDataSet:
         )
 
         # 데이터 폴더 나누기
-        self.total_samples = self.processed_data.shape[0]  # 학습/검증/테스트 전체 샘플 수
+        self._total_samples = self.processed_data.shape[0]  # 학습/검증/테스트 전체 샘플 수
         self._determinable_idx = list(self.processed_data.query("mark == True").index)
         if experimental_mode:
             (
@@ -51,11 +61,11 @@ class SequentialDataSet:
             self.inference_idx = self._determinable_idx
             self.inference_data = self.processed_data
 
-        self.n_train, self.n_validation, self.n_inference = (
-            len(self.train_idx),
-            len(self.validation_idx),
-            len(self.inference_idx),
-        )
+        # self.n_train, self.n_validation, self.n_inference = (
+        #     len(self.train_idx),
+        #     len(self.validation_idx),
+        #     len(self.inference_idx),
+        # )
 
     @funTime("pre_process - step 1")
     def _read_analyse_data(self, raw_filename_min, pivot_filename_day) -> pd.DataFrame:
@@ -130,8 +140,8 @@ class SequentialDataSet:
 
     def _idx_split(self, determinable_idx) -> List:
         # 70% 비율로 Seen/Un-seen 데이터 분할, 80% 비율로 학습/검증 데이터 분할
-        unseen_loc = int(self.total_samples * 0.7)
-        seen_loc = self.total_samples - unseen_loc
+        unseen_loc = int(self._total_samples * 0.7)
+        seen_loc = self._total_samples - unseen_loc
         train_validation_loc = int(seen_loc * 0.8)
 
         inference_data = self.processed_data.iloc[unseen_loc:]
@@ -152,3 +162,38 @@ class SequentialDataSet:
             sorted(list(set.intersection(set(inference_idx), set(determinable_idx)))),
             inference_data,
         )
+
+    # def __getstate__(self):
+    #     # modin.padas 피클링 오류 있음. 판다스로 변환하여 피클링
+    #     return {
+    #         "train_data": self.processed_data._to_pandas(),
+    #         "train_idx": self.train_idx,
+    #     }
+
+    # def __setstate__(self, state):
+    #     self.processed_data = state["train_data"]
+    #     self.train_idx = state["train_idx"]
+    #     self.__init__()
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+
+        # modin.pandas 피클링에 오류 있음
+        # 텍스트로 저장 함
+        for k, v in self.__dict__.items():
+            if isinstance(v, pd.dataframe.DataFrame):
+                v.to_csv(f"./src/assets/{k}.csv")
+                state[k] = f"[modin.pandas]./src/assets/{k}.csv"
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+        # modin.pandas 텍스트로 부터 객체 생성
+        for k, v in self.__dict__.items():
+            if isinstance(v, str):
+                if "[modin.pandas]" in v:
+                    print_c(f"un-pickling {v}")
+                    df = pd.read_csv(v.replace("[modin.pandas]", ""))
+                    df.set_index("datetime", inplace=True)
+                    self.__dict__[k] = df
