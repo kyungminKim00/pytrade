@@ -12,7 +12,7 @@ class QuantileDiscretizer:
 
         self.mean = df.mean(axis=0)
         self.std = df.std(axis=0, ddof=1)
-
+        assert (self.mean.index == self.std.index).all(), "버젼에 따라 컬럼의 순서가 일치 하지 않을 수 있음"
         # Clip outliers using mean and standard deviation
         # self.clipped_vectors = df.clip(
         #     self.mean - 3 * self.std, self.mean + 3 * self.std, axis=1
@@ -23,13 +23,13 @@ class QuantileDiscretizer:
         )
 
         # Scott's rule: Determine the bin size
-        n_bins = 3.5 * self.std * np.power(df.shape[0], -1 / 3)
+        self.n_bins = 3.5 * self.std * np.power(df.shape[0], -1 / 3)
 
         df.to_csv("./source.csv")
         self.mean.to_csv("./mean.csv")
         self.std.to_csv("./std.csv")
         self.clipped_vectors.to_csv("./std.csv")
-        n_bins.to_csv("./n_bins.csv")
+        self.n_bins.to_csv("./n_bins.csv")
 
         # # KBinsDiscretizer 을 특징별로 두면 코드가 너무 복잡 해짐
         # self.n_bins = np.max(n_bins)
