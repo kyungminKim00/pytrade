@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import modin.pandas as pd
 import numpy as np
 from joblib import dump, load
@@ -5,43 +7,43 @@ from sklearn.preprocessing import KBinsDiscretizer
 
 
 class QuantileDiscretizer:
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame, known_real: List[str]):
 
-        drop_column = [c for c in df.columns if not "spd" in c]
-        df = df.drop(columns=drop_column)
+        # # 특징 변수(Attributes)의 prefix를 spd 로 지정 해 둠 (전처리 단계 - 특징생성 모듈)
+        # drop_column = [c for c in df.columns if not "spd" in c]
+        # df = df.drop(columns=drop_column)
+
+        df = df[known_real]
 
         self.mean = df.mean(axis=0)
         self.std = df.std(axis=0, ddof=1)
-        assert (self.mean.index == self.std.index).all(), "버젼에 따라 컬럼의 순서가 일치 하지 않을 수 있음"
-        # Clip outliers using mean and standard deviation
-        # self.clipped_vectors = df.clip(
-        #     self.mean - 3 * self.std, self.mean + 3 * self.std, axis=1
-        # )
 
-        self.clipped_vectors = df.clip(
-            self.mean - 0.5 * self.std, self.mean + 0.5 * self.std, axis=1
-        )
+        # 이상치 처리
+        self.lower = self.mean - 3 * self.std
+        self.upper = self.mean + 3 * self.std
+        self.clipped_vectors = df.clip(self.lower, self.upper, axis=1)
 
-        # Scott's rule: Determine the bin size
-        self.n_bins = 3.5 * self.std * np.power(df.shape[0], -1 / 3)
+        # 이산화 빈 사이즈 결정 with scott's
+        data_length = df.shape[0]
+        bound = df.max() - df.min()
+        h = 3.5 * self.std * np.power(data_length, -1 / 3)
 
-        df.to_csv("./source.csv")
-        self.mean.to_csv("./mean.csv")
-        self.std.to_csv("./std.csv")
-        self.clipped_vectors.to_csv("./std.csv")
-        self.n_bins.to_csv("./n_bins.csv")
-
-        # # KBinsDiscretizer 을 특징별로 두면 코드가 너무 복잡 해짐
-        # self.n_bins = np.max(n_bins)
+        self.n_bins = (bound / h).astype(int)
 
     def discretizer_learn_save(self, obj_fn: str):
         discretizer = {
+            # 이산화 모형
             "model": KBinsDiscretizer(
-                n_bins=self.n_bins, encode="ordinal", strategy="uniform"
-            ).fit(self.clipped_vectors),
-            "mean": self.mean,
-            "std": self.std,
-            "n_bins": self.n_bins,
+                n_bins=self.n_bins.values, encode="ordinal", strategy="uniform"
+            ).fit(self.clipped_vectors.to_numpy()),
+            # 이상치 처리 및 패턴 인덱스 생성을 위한 파라미터
+            "mean": self.mean.values,
+            "std": self.std.values,
+            "n_bins": self.n_bins.values,
+            "lower": self.lower.values,
+            "upper": self.upper.values,
+            # 데이터의 순서쌍이 일치하는지 검증 키 - 간혹 버젼 os 특성으로 컬럼의 순서가 바뀌는 경우가 있음
+            "valide_key": list(self.clipped_vectors.columns),
         }
         dump(discretizer, obj_fn)
 

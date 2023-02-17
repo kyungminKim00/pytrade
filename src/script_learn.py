@@ -28,19 +28,28 @@ class DateReader(Dataset):
         df,
         custom_index,
         sequence_length=None,
-        discretizer_dict=None,
+        discretizer=None,
+        known_real=None,
+        unknown_real=None,
     ):
-        self._df = df
+        self._df = df[known_real]
+        self._df_y = df[unknown_real]
+
         self._determinable_idx = custom_index
         self._sequence_length = sequence_length
         self._min_sequence_length = 20
         self._max_sequence_length = 120
         self._sample_dict = {}
 
-        self.discretizer = discretizer_dict["discretizer"]
-        self.mean = discretizer_dict["mean"]
-        self.std = discretizer_dict["std"]
-        self.n_bins = discretizer_dict["n_bins"]
+        self.discretizer = discretizer["model"]
+        self._lower = discretizer["lower"]
+        self._upper = discretizer["upper"]
+        self._n_bins = discretizer["n_bins"]
+        self._mean = discretizer["mean"]
+        self._std = discretizer["std"]
+        assert (
+            list(known_real) == discretizer["valide_key"]
+        ), "입력의 차원의 변경이 발생 함 혹은 컬럼의 순서 변경 가능성 있음"
 
     @property
     def sequence_length(self):
@@ -76,22 +85,14 @@ class DateReader(Dataset):
 
     # convert the quantized vectors into decimal values
     def encode(self, df: pd.DataFrame) -> pd.Series:
-        # qd = joblib.load("./assets/discretizer.pkl")
-        # obj_dict = joblib.load("./assets/obj_dict.pkl")
         obj_dict = {}
 
-        clipped_vectors = df.clip(self.mean - 3 * self.std, self.mean + 3 * self.std)
+        clipped_vectors = df.clip(self._lower, self._upper, axis=1)
 
-        # # Convert the quantized vectors into decimal values
-        # decimal_vectors = ray.get(
-        #     [
-        #         str(decimal_conversion.remote(vector, qd.n_bins))
-        #         for vector in qd.quantized_vectors(clipped_vectors)
-        #     ]
-        # )
-        # Convert the quantized vectors into decimal values
+        # 각 속성(continuous values)을 이산화하고 이산화된 벡터를 유니크한 하나의 정수로 표현한다
+        # 즉, continuous_values로 표현된 패턴을 심볼릭 패턴으로 변환한다.
         decimal_vectors = [
-            str(decimal_conversion(vector, self.n_bins))
+            str(decimal_conversion(vector, self._n_bins))
             for vector in self.discretizer.transform(clipped_vectors)
         ]
 
@@ -140,18 +141,23 @@ processed_data = load("./src/assets/sequential_data.pkl")
 
 
 # 이산화 모형 학습과 저장
-qd = QuantileDiscretizer(processed_data.train_data)
-qd.discretizer_learn_save("./assets/discretizer.pkl")
+x_real = [c for c in processed_data.train_data.columns if "spd" in c]
+y_real = ["y_rtn_close"]
+
+qd = QuantileDiscretizer(processed_data.train_data, x_real)
+qd.discretizer_learn_save("./src/assets/discretizer.pkl")
 
 
 # 이산화 모형 로드
-discretizer_dict = load("./assets/discretizer.pkl")
+dct = load("./src/assets/discretizer.pkl")
 
 train_dataset = DateReader(
     df=processed_data.train_data,
     sequence_length=None,
     custom_index=processed_data.train_idx,
-    discretizer_dict=discretizer_dict,
+    discretizer=dct,
+    known_real=x_real,
+    unknown_real=y_real,
 )
 dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
 for i, x in enumerate(dataloader):
