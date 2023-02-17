@@ -26,9 +26,17 @@ class QuantileDiscretizer:
         # 이산화 빈 사이즈 결정 with scott's
         data_length = df.shape[0]
         bound = df.max() - df.min()
-        h = 3.5 * self.std * np.power(data_length, -1 / 3)
-
+        # h = 3.5 * self.std * np.power(data_length, -1 / 3)
+        h = 7 * self.std * np.power(data_length, -1 / 3)
         self.n_bins = (bound / h).astype(int)
+
+        # 1분봉 관련 정보는 적게 참고 하려고 함
+        tmp = self.n_bins.min()
+        self.n_bins.loc["spd_close_candle1_ma9"] = tmp
+        self.n_bins.loc["spd_close_candle1_ma50"] = tmp
+        self.n_bins.loc["spd_close_candle1_ma100"] = tmp
+        self.n_bins.loc["spd_close_high"] = tmp
+        self.n_bins.loc["spd_close_low"] = tmp
 
     def discretizer_learn_save(self, obj_fn: str):
         discretizer = {
