@@ -114,15 +114,17 @@ class SequentialDataSet:
                 이전 n분봉의 종가 == 현재 n분봉의 시가 이므로 (이전 n분봉의 종가 - 현재종가)/현재종가 -> (현재 n분봉의 시가 - 현재종가)/현재종가 
         """
         processed_data = spread_close_ma(
-            processed_data, analyse_data_ref, self._candle_size, self._w_size
+            processed_data, analyse_data_ref, self._candle_size[1:], self._w_size
         )
         processed_data = spread_close_maginot(processed_data, analyse_data_ref)
-        processed_data = confidence_candle_1(processed_data, analyse_data_ref)
         processed_data = confidence_spread_candle(
             processed_data,
             analyse_data_ref,
             self._candle_size[1:],
         )
+        # not in use
+        # processed_data = confidence_candle_1(processed_data, analyse_data_ref)
+
         # 메모리 해제
         del analyse_data_ref
 
@@ -195,5 +197,5 @@ class SequentialDataSet:
                 if "[modin.pandas]" in v:
                     print_c(f"un-pickling {v}")
                     df = pd.read_csv(v.replace("[modin.pandas]", ""))
-                    df.set_index("datetime", inplace=True)
+                    df.set_index(pd.DatetimeIndex(df["datetime"]), inplace=True)
                     self.__dict__[k] = df

@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import modin.pandas as pd
+import numpy as np
 import psutil
 import ray
 

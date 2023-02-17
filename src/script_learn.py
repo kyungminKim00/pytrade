@@ -120,6 +120,7 @@ class DateReader(Dataset):
 #     debug=False,
 # )
 # dump(sequential_data, "./src/assets/sequential_data.pkl")
+# assert False, "SequentialDataSet"
 processed_data = load("./src/assets/sequential_data.pkl")
 
 
