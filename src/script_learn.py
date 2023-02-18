@@ -31,6 +31,7 @@ class DateReader(Dataset):
         discretizer=None,
         known_real=None,
         unknown_real=None,
+        pattern_dict=None,
     ):
         self._df = df[known_real]
         self._df_y = df[unknown_real]
@@ -40,6 +41,7 @@ class DateReader(Dataset):
         self._min_sequence_length = 20
         self._max_sequence_length = 120
         self._sample_dict = {}
+        self.pattern_dict = pattern_dict
 
         self.discretizer = discretizer["model"]
         self._lower = discretizer["lower"]
@@ -83,32 +85,30 @@ class DateReader(Dataset):
         X_tensor = torch.tensor(X.values, dtype=torch.float)
         return X_tensor
 
-    # convert the quantized vectors into decimal values
+    def __repr__(self):
+        pass
+
+    # convert the quantized vectors into a single integers
     def encode(self, df: pd.DataFrame) -> pd.Series:
-        obj_dict = {}
 
         clipped_vectors = df.clip(self._lower, self._upper, axis=1)
-
-        # 각 속성(continuous values)을 이산화하고 이산화된 벡터를 유니크한 하나의 정수로 표현한다
-        # 즉, continuous_values로 표현된 패턴을 심볼릭 패턴으로 변환한다.
-        decimal_vectors = [
-            str(decimal_conversion(vector, self._n_bins))
-            for vector in self.discretizer.transform(clipped_vectors)
-        ]
+        pattern_tuple = tuple(
+            map(tuple, self.discretizer.transform(clipped_vectors).astype(int))
+        )
 
         def id_from_dict(pttn):
-            max_number = len(obj_dict)
-            key = "_".join(pttn)
+            max_number = len(self.pattern_dict)
 
-            if obj_dict.get(key) is None:
+            if self.pattern_dict.get(pttn) is None:
                 p_id = max_number + 1
-                obj_dict[key] = p_id
-                dump(obj_dict, "./assets/obj_dict.pkl")
-            p_id = obj_dict[key]
+                self.pattern_dict[pttn] = p_id
+                # 저장하고 리드하고 로직 다시 고민해 보기 업데이트 필요
+                dump(self.pattern_dict, "./assets/pattern_dict.pkl")
+            p_id = self.pattern_dict[pttn]
 
             return p_id
 
-        pattern_id = list(map(id_from_dict, decimal_vectors))
+        pattern_id = list(map(id_from_dict, pattern_tuple))
 
         return pd.Series(pattern_id, index=df.index)
 
@@ -144,10 +144,8 @@ processed_data = load("./src/assets/sequential_data.pkl")
 # 이산화 모형 학습과 저장
 x_real = [c for c in processed_data.train_data.columns if "spd" in c]
 y_real = ["y_rtn_close"]
-
 qd = QuantileDiscretizer(processed_data.train_data, x_real)
 qd.discretizer_learn_save("./src/assets/discretizer.pkl")
-
 
 # 이산화 모형 로드
 dct = load("./src/assets/discretizer.pkl")
