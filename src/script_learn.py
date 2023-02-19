@@ -85,7 +85,8 @@ class DateReader(Dataset):
 
         # convert to PyTorch tensors
         X_tensor = torch.tensor(X.values, dtype=torch.float)
-        return X_tensor
+
+        return X_tensor, list(X.index)
 
     def __repr__(self):
         pass
@@ -105,7 +106,7 @@ class DateReader(Dataset):
                 self._num_new_pattern = self._num_new_pattern + 1
                 p_id = max_number + 1
                 self.pattern_dict[pttn] = p_id
-                print_c(f"new patterns: {self._num_new_pattern}")
+                print_c(f"unseen patterns: {self._num_new_pattern} ")
             p_id = self.pattern_dict[pttn]
 
             return p_id
