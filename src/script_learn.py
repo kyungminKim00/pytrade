@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from preprocess import SequentialDataSet
 from quantile_discretizer import QuantileDiscretizer
+from util import print_c
 
 ray.shutdown()
 ray.init()
@@ -41,14 +42,15 @@ class DateReader(Dataset):
         self._min_sequence_length = 20
         self._max_sequence_length = 120
         self._sample_dict = {}
+        self._num_new_pattern = 0
         self.pattern_dict = pattern_dict
 
         self.discretizer = discretizer["model"]
         self._lower = discretizer["lower"]
         self._upper = discretizer["upper"]
-        self._n_bins = discretizer["n_bins"]
-        self._mean = discretizer["mean"]
-        self._std = discretizer["std"]
+        # self._n_bins = discretizer["n_bins"]
+        # self._mean = discretizer["mean"]
+        # self._std = discretizer["std"]
         assert (
             list(known_real) == discretizer["valide_key"]
         ), "입력의 차원의 변경이 발생 함 혹은 컬럼의 순서 변경 가능성 있음"
@@ -100,10 +102,10 @@ class DateReader(Dataset):
             max_number = len(self.pattern_dict)
 
             if self.pattern_dict.get(pttn) is None:
+                self._num_new_pattern = self._num_new_pattern + 1
                 p_id = max_number + 1
                 self.pattern_dict[pttn] = p_id
-                # 저장하고 리드하고 로직 다시 고민해 보기 업데이트 필요
-                dump(self.pattern_dict, "./assets/pattern_dict.pkl")
+                print_c(f"new patterns: {self._num_new_pattern}")
             p_id = self.pattern_dict[pttn]
 
             return p_id
@@ -120,9 +122,12 @@ class DateReader(Dataset):
 #     debug=False,
 # )
 # dump(sequential_data, "./src/assets/sequential_data.pkl")
-# assert False, "SequentialDataSet"
+
 processed_data = load("./src/assets/sequential_data.pkl")
 
+# 변수 설정
+x_real = [c for c in processed_data.train_data.columns if "spd" in c]
+y_real = ["y_rtn_close"]
 
 ## [지우기] 전처리 완료 데이터 저장 - 사용 하지 않음 (modin.pandas 오류시 고려하기)
 # processed_data = {
@@ -141,9 +146,7 @@ processed_data = load("./src/assets/sequential_data.pkl")
 # processed_data = load("./src/assets/sequential_data.pkl")
 
 
-# 이산화 모형 학습과 저장
-x_real = [c for c in processed_data.train_data.columns if "spd" in c]
-y_real = ["y_rtn_close"]
+# 이산화 모듈 저장
 qd = QuantileDiscretizer(processed_data.train_data, x_real)
 qd.discretizer_learn_save("./src/assets/discretizer.pkl")
 
@@ -157,7 +160,10 @@ train_dataset = DateReader(
     discretizer=dct,
     known_real=x_real,
     unknown_real=y_real,
+    pattern_dict=load("./src/assets/pattern_dict.pkl"),
 )
 dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
 for i, x in enumerate(dataloader):
     print(f"Iteration {i}: x = {x}")
+# 새롭게 추가된 패턴 인덱스 저장
+dump(train_dataset.pattern_dict, "./src/assets/pattern_dict.pkl")
