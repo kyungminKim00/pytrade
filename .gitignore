@@ -219,3 +219,4 @@ cython_debug/
 /scripts/dev-environment/pyproject.toml
 /cache
 src/assets/validation_data.csv
+assets/
