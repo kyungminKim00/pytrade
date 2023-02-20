@@ -11,6 +11,7 @@
 local_data
 *.pt
 *.csv
+*.ppt
 
 # Generated files
 .idea/**/contentModel.xml
