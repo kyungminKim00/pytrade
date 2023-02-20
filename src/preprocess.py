@@ -1,12 +1,11 @@
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import modin.pandas as pd
+import pandas as pd
 import ray
 
 from attributes import (
-    confidence_candle_1,
-    confidence_spread_candle,
+    confidence_spread_candle,  # confidence_candle_1,
     spread_close_ma,
     spread_close_maginot,
 )
@@ -24,6 +23,7 @@ class SequentialDataSet:
         candle_size: Tuple[int] = (1, 3, 5, 15, 60, 240),
         w_size: Tuple[int] = (9, 50, 100),
         determinable_candle: int = 3,
+        offset: int = None,
     ) -> None:
         ray.shutdown()
         ray.init()
@@ -32,6 +32,7 @@ class SequentialDataSet:
         self._candle_size = candle_size
         self._w_size = w_size
         self._determinable_candle = determinable_candle
+        self._offset = offset
 
         self.train_idx = None
         self.train_data = None
@@ -77,6 +78,7 @@ class SequentialDataSet:
                 "candle_size": self._candle_size,
                 "w_size": self._w_size,
                 "determinable_candle": self._determinable_candle,
+                "offset": self._offset,
             },
         ).raw
         print_c("Raw Data Ready: OK")
@@ -183,9 +185,16 @@ class SequentialDataSet:
         # modin.pandas 피클링에 오류 있음
         # 텍스트로 저장 함
         for k, v in self.__dict__.items():
-            if isinstance(v, pd.dataframe.DataFrame):
+            try:
+                is_pandas = isinstance(v, pd.dataframe.DataFrame)
+                employed = "load.pandas"
+            except AttributeError:
+                is_pandas = isinstance(v, pd.core.frame.DataFrame)
+                employed = "load.pandas"
+
+            if is_pandas:
                 v.to_csv(f"./src/assets/{k}.csv")
-                state[k] = f"[modin.pandas]./src/assets/{k}.csv"
+                state[k] = f"[{employed}]./src/assets/{k}.csv"
         return state
 
     def __setstate__(self, state):
@@ -194,8 +203,8 @@ class SequentialDataSet:
         # modin.pandas 텍스트로 부터 객체 생성
         for k, v in self.__dict__.items():
             if isinstance(v, str):
-                if "[modin.pandas]" in v:
+                if "[load.pandas]" in v:
                     print_c(f"un-pickling {v}")
-                    df = pd.read_csv(v.replace("[modin.pandas]", ""))
+                    df = pd.read_csv(v.replace("[load.pandas]", ""))
                     df.set_index(pd.DatetimeIndex(df["datetime"]), inplace=True)
                     self.__dict__[k] = df

@@ -2,8 +2,8 @@ import itertools
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import bottleneck as bn
-import modin.pandas as pd
 import numpy as np
+import pandas as pd
 import psutil
 import ray
 
@@ -28,6 +28,7 @@ class Refine:
         self._candle_size = params["candle_size"]
         self._w_size = params["w_size"]
         self._determinable_candle = params["determinable_candle"]
+        self._offset = params["offset"]
         self._raw = self._refine_process(r_pd)
 
     @property
@@ -35,9 +36,12 @@ class Refine:
         return self._raw
 
     def _refine_process(self, r_pd: pd.DataFrame) -> pd.DataFrame:
-        # 추후 삭제 - 코드개발시 데이터 사이즈 줄이기 위해 존재하는 코드
-        r_pd = r_pd[-35000:]
-        print_c("Reduce the size of raw data - Remove this section")
+        if self._offset is not None:
+            r_pd = r_pd[-self._offset :]
+            print_c(f"[Done] Load raw data with offset {-self._offset}")
+        else:
+            print_c("[Done] Load raw data with offset is None")
+        print_c("Refine process ...")
 
         # generate datetime
         # r_pd["hours"] = r_pd["time"].str[:-2]
