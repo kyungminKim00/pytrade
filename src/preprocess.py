@@ -4,11 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import pandas as pd
 import ray
 
-from attributes import (
-    confidence_spread_candle,  # confidence_candle_1,
-    spread_close_ma,
-    spread_close_maginot,
-)
+from attributes import confidence_spread_candle  # confidence_candle_1,
+from attributes import spread_close_ma, spread_close_maginot
 from refine_raw import Refine
 from util import funTime, print_c
 
@@ -144,9 +141,8 @@ class SequentialDataSet:
 
     def _idx_split(self, determinable_idx) -> List:
         # 70% 비율로 Seen/Un-seen 데이터 분할, 80% 비율로 학습/검증 데이터 분할
-        unseen_loc = int(self._total_samples * 0.7)
-        seen_loc = self._total_samples - unseen_loc
-        train_validation_loc = int(seen_loc * 0.8)
+        unseen_loc = int(self._total_samples * 0.8)
+        train_validation_loc = int(unseen_loc * 0.8)
 
         inference_data = self.processed_data.iloc[unseen_loc:]
         inference_idx = list(inference_data.index)
@@ -154,7 +150,7 @@ class SequentialDataSet:
         train_data = self.processed_data.iloc[:train_validation_loc]
         train_idx = list(train_data.index)
 
-        validation_data = self.processed_data.iloc[train_validation_loc:]
+        validation_data = self.processed_data.iloc[train_validation_loc:unseen_loc]
         validation_idx = list(validation_data.index)
 
         # 데이터 세트 별 determinable index

@@ -26,7 +26,8 @@ class QuantileDiscretizer:
         # 이산화 빈 사이즈 결정 with scott's
         data_length = df.shape[0]
         bound = df.max() - df.min()
-        h = 3.5 * self.std * np.power(data_length, -1 / 3)
+        # h = 3.5 * self.std * np.power(data_length, -1 / 3)
+        h = 7 * self.std * np.power(data_length, -1 / 3)
         self.n_bins = (bound / h).astype(int)
 
     def discretizer_learn_save(self, obj_fn: str):

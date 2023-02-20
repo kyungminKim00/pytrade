@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import modin.pandas as pd
+import pandas as pd
 import scipy.optimize as opt
 
 

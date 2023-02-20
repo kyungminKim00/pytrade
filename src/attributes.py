@@ -1,7 +1,7 @@
 # import numpy as np
 import itertools
 
-import modin.pandas as pd
+import pandas as pd
 import ray
 
 prefix = "spd_"

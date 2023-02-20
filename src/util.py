@@ -25,8 +25,8 @@ import cloudpickle
 
 # from sklearn.externals import joblib
 import joblib
-import modin.pandas as pd
 import numpy as np
+import pandas as pd
 import sklearn.metrics as metrics
 from PIL import Image
 

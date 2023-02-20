@@ -2,8 +2,8 @@ import random
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import modin.pandas as pd
 import numpy as np
+import pandas as pd
 from pytorch_forecasting.data import TimeSeriesDataSet
 
 from preprocess import SequentialDataSet

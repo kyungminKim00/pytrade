@@ -1,4 +1,4 @@
-import modin.pandas as pd
+import pandas as pd
 import yfinance as yf
 
 if __name__ == "__main__":

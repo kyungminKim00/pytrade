@@ -1,5 +1,5 @@
-import modin.pandas as pd
 import numpy as np
+import pandas as pd
 from joblib import dump, load
 from sklearn.preprocessing import KBinsDiscretizer
 

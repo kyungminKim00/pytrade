@@ -84,12 +84,12 @@ class DateReader(Dataset):
                 rcd_sequence_length,
             )
 
-        X, X_datetime = self._sample_dict[dict_key]
+        X, X_datetime, new_pattern = self._sample_dict[dict_key]
 
         # convert to PyTorch tensors
         X_tensor = torch.tensor(X, dtype=torch.float)
 
-        return X_tensor, X_datetime
+        return X_tensor, X_datetime, new_pattern
 
     def __repr__(self):
         pass
@@ -123,24 +123,23 @@ class DateReader(Dataset):
             [0] * (self._max_sequence_length - sequence_length) + pattern_id
         )
 
-        return (pattern_id, datetime)
+        return (pattern_id, datetime, self.num_new_pattern)
 
 
-# # 전처리 완료 데이터
-# offset = 35000  # small data or operating data
-# offset = None  # practical data
+# 전처리 완료 데이터
+offset = 35000  # small data or operating data
+offset = None  # practical data
 
-# start = time()
-# sequential_data = SequentialDataSet(
-#     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-#     pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
-#     debug=False,
-#     offset=offset,
-# )
-# end = time()
-# print(f"\n== Time cost for [SequentialDataSet] : {end - start}")
-
-# dump(sequential_data, "./src/assets/sequential_data.pkl")
+start = time()
+sequential_data = SequentialDataSet(
+    raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+    pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+    debug=False,
+    offset=offset,
+)
+end = time()
+print(f"\n== Time cost for [SequentialDataSet] : {end - start}")
+dump(sequential_data, "./src/assets/sequential_data.pkl")
 
 # 전처리 완료 데이터 로드
 processed_data = load("./src/assets/sequential_data.pkl")
@@ -193,16 +192,19 @@ dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_worker
 progress_bar = tqdm(dataloader)
 determineable_samples_about = len(dataloader) * batch_size
 total_sample_about = determineable_samples_about * 3
-for i, (x, x_date) in enumerate(progress_bar):
+r_num_new_pattern = 0
+for i, (x, x_date, num_new_pattern) in enumerate(progress_bar):
+    r_num_new_pattern = num_new_pattern[-1].cpu()
     progress_bar.set_postfix(
-        pattern=dataset.num_new_pattern,
-        explain_pattern=(1 - (dataset.num_new_pattern / total_sample_about)),
+        pattern=r_num_new_pattern,
+        explain_pattern=(1 - (r_num_new_pattern / total_sample_about)),
     )
+
 # 패턴 커버리지 분석
 print_c(
-    f"새롭게 찾은 패턴의수({dataset.num_new_pattern}) 샘플수(determineable_samples{determineable_samples_about}) 전체샘플수({total_sample_about})"
+    f"새롭게 찾은 패턴의수({r_num_new_pattern}) 샘플수 determineable_samples ({determineable_samples_about}) 전체샘플수({total_sample_about})"
 )
-print_c(f"패턴의 설명력({1 - (dataset.num_new_pattern/total_sample_about)}, max=1)")
+print_c(f"패턴의 설명력({1 - (r_num_new_pattern/total_sample_about)}, max=1)")
 end = time()
 print(f"\n== Time cost for [Data Loader] : {end - start}")
 
