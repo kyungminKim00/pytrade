@@ -2,7 +2,7 @@ DateTime==4.3
 numpy
 cloudpickle
 joblib
-sklearn
+scikit-learn
 scipy
 tqdm
 pycairo
