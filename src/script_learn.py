@@ -39,7 +39,7 @@ class DateReader(Dataset):
 
         self._determinable_idx = custom_index
         self._sequence_length = sequence_length
-        self._min_sequence_length = 20
+        self._min_sequence_length = 60
         self._max_sequence_length = 120
         self._sample_dict = {}
         self._num_new_pattern = 0
@@ -78,7 +78,8 @@ class DateReader(Dataset):
                 )
 
             self._sample_dict[dict_key] = self.encode(
-                self._df.iloc[loc - rcd_sequence_length : loc + 1]
+                self._df.iloc[loc - self._max_sequence_length + 1 : loc + 1],
+                rcd_sequence_length,
             )
 
         X = self._sample_dict[dict_key]
@@ -92,9 +93,11 @@ class DateReader(Dataset):
         pass
 
     # convert the quantized vectors into a single integers
-    def encode(self, df: pd.DataFrame) -> pd.Series:
+    def encode(self, df: pd.DataFrame, sequence_length: int) -> pd.Series:
 
         clipped_vectors = df.clip(self._lower, self._upper, axis=1)
+        clipped_vectors = clipped_vectors[-sequence_length:]
+
         pattern_tuple = tuple(
             map(tuple, self.discretizer.transform(clipped_vectors).astype(int))
         )
@@ -112,6 +115,9 @@ class DateReader(Dataset):
             return p_id
 
         pattern_id = list(map(id_from_dict, pattern_tuple))
+
+        # padding
+        pattern_id = [0] * (self._max_sequence_length - sequence_length) + pattern_id
 
         return pd.Series(pattern_id, index=df.index)
 
@@ -165,6 +171,7 @@ train_dataset = DateReader(
 )
 dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
 for i, x in enumerate(dataloader):
-    print(f"Iteration {i}: x = {x}")
-# 새롭게 추가된 패턴 인덱스 저장
+    print(f"Dates {x}: x = {i}")
+# 새롭게 추가된 패턴 저장
 dump(train_dataset.pattern_dict, "./src/assets/pattern_dict.pkl")
+print(f"train_dataset.pattern_dict: {train_dataset.pattern_dict}")
