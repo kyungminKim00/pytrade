@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-class DateReader(Dataset):
+class DataReader(Dataset):
     def __init__(
         self,
         df,

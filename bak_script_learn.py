@@ -25,7 +25,7 @@ ray.init()
 #     return decimal
 
 
-class DateReader(Dataset):
+class DataReader(Dataset):
     def __init__(
         self,
         df,
@@ -96,7 +96,6 @@ class DateReader(Dataset):
 
     # convert the quantized vectors into a single integers
     def encode(self, df: pd.DataFrame, sequence_length: int) -> pd.Series:
-
         clipped_vectors = df.clip(self._lower, self._upper, axis=1)
         clipped_vectors = clipped_vectors[-sequence_length:]
 
@@ -175,7 +174,7 @@ qd.discretizer_learn_save("./src/assets/discretizer.pkl")
 # 이산화 모형 로드
 dct = load("./src/assets/discretizer.pkl")
 
-train_dataset = DateReader(
+train_dataset = DataReader(
     df=processed_data.train_data,
     sequence_length=None,
     custom_index=processed_data.train_idx,

@@ -10,12 +10,13 @@ from joblib import dump, load
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from data_reader import DataReader
 from preprocess import SequentialDataSet
 from quantile_discretizer import QuantileDiscretizer
 from util import print_c, print_flush
 
-if ray.is_initialized():
-    ray.init()
+# if ray.is_initialized():
+#     ray.init()
 
 
 # 전처리 완료 데이터
@@ -68,7 +69,7 @@ qd.discretizer_learn_save("./src/assets/discretizer.pkl")
 # 이산화 모형 로드
 dct = load("./src/assets/discretizer.pkl")
 
-train_dataset = DateReader(
+train_dataset = DataReader(
     df=processed_data.train_data,
     sequence_length=None,
     custom_index=processed_data.train_idx,
