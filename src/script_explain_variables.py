@@ -15,31 +15,15 @@ from preprocess import SequentialDataSet
 from quantile_discretizer import QuantileDiscretizer
 from util import print_c, print_flush
 
-candle_size = [
-    (1, 3, 5, 15, 60, 240),
-    (
-        1,
-        3,
-        5,
-        15,
-        60,
-    ),
-    (
-        1,
-        3,
-        5,
-        15,
-    ),
-    (1, 3, 5),
-]
+candle_size = [(1, 3, 5, 15, 60)]
 w_size = (9, 50, 100)
 # w_size = (9, 50)
-alpha = [3.5, 7.0, 11, 15, 18, 21, 24, 27]
+alpha = [3.5]
 
 for _candle_size in candle_size:
     # 전처리 완료 데이터
-    offset = 35000  # small data or operating data
-    # offset = None  # practical data
+    # offset = 35000  # small data or operating data
+    offset = None  # practical data
 
     sequential_data = SequentialDataSet(
         raw_filename_min="./src/local_data/raw/dax_tm3.csv",
@@ -57,16 +41,17 @@ for _candle_size in candle_size:
     # 변수 설정
     x_real = [c for c in processed_data.train_data.columns if "feature" in c]
 
-    print_c("먼저 보기 continue 값만 먼저 보기")
-    print_c("먼저 보기 continue 값만 먼저 보기")
-    print_c("먼저 보기 continue 값만 먼저 보기")
-    x_real = [c for c in processed_data.train_data.columns if "feature_cont" in c]
+    # print_c("먼저 보기 continue 값만 먼저 보기")
+    # print_c("먼저 보기 continue 값만 먼저 보기")
+    # print_c("먼저 보기 continue 값만 먼저 보기")
+    # x_real = [c for c in processed_data.train_data.columns if "feature_cont" in c]
     y_real = ["y_rtn_close"]
 
     # 이산화 모듈 저장
     for _alpha in alpha:
-        qd = QuantileDiscretizer(processed_data.train_data, x_real, alpha=_alpha)
-        qd.discretizer_learn_save("./src/assets/discretizer.pkl")
+        # # 저장 했으면 disable
+        # qd = QuantileDiscretizer(processed_data.train_data, x_real, alpha=_alpha)
+        # qd.discretizer_learn_save("./src/assets/discretizer.pkl")
 
         # 이산화 모형 로드
         dct = load("./src/assets/discretizer.pkl")
@@ -103,6 +88,10 @@ for _candle_size in candle_size:
 
         # 패턴 커버리지 분석
         print_c(f"bins: {qd.n_bins} ")
+        print_c(f"mean: {qd.mean} ")
+        print_c(f"std: {qd.std} ")
+        print_c(f"max: {qd.max} ")
+        print_c(f"min: {qd.min} ")
         print_c(f"candle_size: {_candle_size}")
         print_c(f"w_size: {w_size}")
         print_c(f"alpha: {_alpha}")

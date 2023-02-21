@@ -14,24 +14,28 @@ class QuantileDiscretizer:
 
         df = df[known_real]
 
-        self.mean = df.mean(axis=0)
-        self.std = df.std(axis=0, ddof=1)
+        mean = df.mean(axis=0)
+        std = df.std(axis=0, ddof=1)
 
         # 이상치 처리
-        self.lower = self.mean - 3 * self.std
-        self.upper = self.mean + 3 * self.std
+        self.lower = mean - 3 * std
+        self.upper = mean + 3 * std
         # for attr in binary_attr:
         #     self.lower[attr] = -1
         #     self.upper[attr] = 1
 
         self.clipped_vectors = df.clip(self.lower, self.upper, axis=1)
+        self.mean = self.clipped_vectors.mean()
+        self.std = self.clipped_vectors.std()
+        self.max = self.clipped_vectors.max()
+        self.min = self.clipped_vectors.min()
 
         # 이산화 빈 사이즈 결정 with scott's
-        bound = df.max() - df.min()
+        bound = self.max - self.min
         # for attr in binary_attr:
         #     bound[attr] = 2
 
-        data_length = df.shape[0]
+        data_length = self.clipped_vectors.shape[0]
         h = alpha * self.std * np.power(data_length, -1 / 3)
 
         self.n_bins = bound / h

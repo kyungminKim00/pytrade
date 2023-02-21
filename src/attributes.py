@@ -72,7 +72,7 @@ def spread_close_maginot(
     analyse_data_ref,
 ):
     spread_futures = [
-        binary_parallel.remote(analyse_data_ref, "close", i_prc)
+        spread_parallel.remote(analyse_data_ref, "close", i_prc)
         for i_prc in [
             "10_lower_maginot",
             "10_upper_maginot",
@@ -105,7 +105,7 @@ def confidence_candle_1(
     analyse_data_ref,
 ):
     spread_futures = [
-        binary_parallel.remote(analyse_data_ref, "close", i_prc)
+        spread_parallel.remote(analyse_data_ref, "close", i_prc)
         for i_prc in ["high", "low"]
     ]
 
@@ -129,7 +129,7 @@ def confidence_spread_candle(
     for candle_size in _candle_size:
         for i_prc in ["high", "low", "open"]:
             spread_futures.append(
-                binary_parallel.remote(
+                spread_parallel.remote(
                     analyse_data_ref, "close", f"{candle_size}mins_{i_prc}"
                 )
             )
