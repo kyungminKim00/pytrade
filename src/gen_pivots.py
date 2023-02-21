@@ -13,8 +13,8 @@ import ray
 class Aggregator:
     def __init__(self, data: pd.DataFrame) -> None:
         # init ray
-        ray.shutdown()
-        ray.init(num_cpus=psutil.cpu_count(logical=False))
+        if ray.is_initialized():
+            ray.init(num_cpus=psutil.cpu_count(logical=False))
 
         self.data = data
         self.alpha, self.beta = 20, 20
