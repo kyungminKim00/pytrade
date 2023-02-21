@@ -22,18 +22,18 @@ alpha = [3.5]
 
 for _candle_size in candle_size:
     # 전처리 완료 데이터
-    # offset = 35000  # small data or operating data
-    # offset = None  # practical data
+    offset = 35000  # small data or operating data
+    offset = None  # practical data
 
-    # sequential_data = SequentialDataSet(
-    #     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-    #     pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
-    #     candle_size=_candle_size,
-    #     w_size=w_size,
-    #     debug=False,
-    #     offset=offset,
-    # )
-    # dump(sequential_data, "./src/assets/sequential_data.pkl")
+    sequential_data = SequentialDataSet(
+        raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+        pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+        candle_size=_candle_size,
+        w_size=w_size,
+        debug=False,
+        offset=offset,
+    )
+    dump(sequential_data, "./src/assets/sequential_data.pkl")
 
     # 전처리 완료 데이터 로드
     processed_data = load("./src/assets/sequential_data.pkl")
@@ -87,11 +87,11 @@ for _candle_size in candle_size:
             )
 
         # 패턴 커버리지 분석
-        print_c(f"bins: {qd.n_bins} ")
-        print_c(f"mean: {qd.mean} ")
-        print_c(f"std: {qd.std} ")
-        print_c(f"max: {qd.max} ")
-        print_c(f"min: {qd.min} ")
+        print_c(f"bins: {dct.n_bins} ")
+        print_c(f"mean: {dct.mean} ")
+        print_c(f"std: {dct.std} ")
+        print_c(f"max: {dct.max} ")
+        print_c(f"min: {dct.min} ")
         print_c(f"candle_size: {_candle_size}")
         print_c(f"w_size: {w_size}")
         print_c(f"alpha: {_alpha}")

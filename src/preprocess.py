@@ -161,43 +161,31 @@ class SequentialDataSet:
         )
 
     # def __getstate__(self):
-    #     # modin.padas 피클링 오류 있음. 판다스로 변환하여 피클링
-    #     return {
-    #         "train_data": self.processed_data._to_pandas(),
-    #         "train_idx": self.train_idx,
-    #     }
+    #     state = self.__dict__.copy()
+
+    #     # modin.pandas 피클링에 오류 있음
+    #     # 텍스트로 저장 함
+    #     for k, v in self.__dict__.items():
+    #         try:
+    #             is_pandas = isinstance(v, pd.dataframe.DataFrame)
+    #             employed = "load.pandas"
+    #         except AttributeError:
+    #             is_pandas = isinstance(v, pd.core.frame.DataFrame)
+    #             employed = "load.pandas"
+
+    #         if is_pandas:
+    #             v.to_csv(f"./src/assets/{k}.csv")
+    #             state[k] = f"[{employed}]./src/assets/{k}.csv"
+    #     return state
 
     # def __setstate__(self, state):
-    #     self.processed_data = state["train_data"]
-    #     self.train_idx = state["train_idx"]
-    #     self.__init__()
+    #     self.__dict__.update(state)
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-
-        # modin.pandas 피클링에 오류 있음
-        # 텍스트로 저장 함
-        for k, v in self.__dict__.items():
-            try:
-                is_pandas = isinstance(v, pd.dataframe.DataFrame)
-                employed = "load.pandas"
-            except AttributeError:
-                is_pandas = isinstance(v, pd.core.frame.DataFrame)
-                employed = "load.pandas"
-
-            if is_pandas:
-                v.to_csv(f"./src/assets/{k}.csv")
-                state[k] = f"[{employed}]./src/assets/{k}.csv"
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
-        # modin.pandas 텍스트로 부터 객체 생성
-        for k, v in self.__dict__.items():
-            if isinstance(v, str):
-                if "[load.pandas]" in v:
-                    print_c(f"un-pickling {v}")
-                    df = pd.read_csv(v.replace("[load.pandas]", ""))
-                    df.set_index(pd.DatetimeIndex(df["datetime"]), inplace=True)
-                    self.__dict__[k] = df
+    #     # modin.pandas 텍스트로 부터 객체 생성
+    #     for k, v in self.__dict__.items():
+    #         if isinstance(v, str):
+    #             if "[load.pandas]" in v:
+    #                 print_c(f"un-pickling {v}")
+    #                 df = pd.read_csv(v.replace("[load.pandas]", ""))
+    #                 df.set_index(pd.DatetimeIndex(df["datetime"]), inplace=True)
+    #                 self.__dict__[k] = df
