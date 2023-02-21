@@ -5,13 +5,12 @@ import pandas as pd
 from joblib import dump, load
 from sklearn.preprocessing import KBinsDiscretizer
 
+from util import print_c
+
 
 class QuantileDiscretizer:
-    def __init__(self, df: pd.DataFrame, known_real: List[str]):
-
-        # # 특징 변수(Attributes)의 prefix를 spd 로 지정 해 둠 (전처리 단계 - 특징생성 모듈)
-        # drop_column = [c for c in df.columns if not "spd" in c]
-        # df = df.drop(columns=drop_column)
+    def __init__(self, df: pd.DataFrame, known_real: List[str], alpha: float = 3.5):
+        # binary_attr = [f_type for f_type in known_real if "feature_binary" in f_type]
 
         df = df[known_real]
 
@@ -21,14 +20,26 @@ class QuantileDiscretizer:
         # 이상치 처리
         self.lower = self.mean - 3 * self.std
         self.upper = self.mean + 3 * self.std
+        # for attr in binary_attr:
+        #     self.lower[attr] = -1
+        #     self.upper[attr] = 1
+
         self.clipped_vectors = df.clip(self.lower, self.upper, axis=1)
 
         # 이산화 빈 사이즈 결정 with scott's
-        data_length = df.shape[0]
         bound = df.max() - df.min()
-        # h = 3.5 * self.std * np.power(data_length, -1 / 3)
-        h = 7 * self.std * np.power(data_length, -1 / 3)
-        self.n_bins = (bound / h).astype(int)
+        # for attr in binary_attr:
+        #     bound[attr] = 2
+
+        data_length = df.shape[0]
+        h = alpha * self.std * np.power(data_length, -1 / 3)
+
+        self.n_bins = bound / h
+        self.n_bins.replace(np.inf, 0, inplace=True)
+        self.n_bins = self.n_bins.astype(int)
+
+        # for attr in binary_attr:
+        #     self.n_bins[attr] = 2
 
     def discretizer_learn_save(self, obj_fn: str):
         discretizer = {

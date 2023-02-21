@@ -16,10 +16,6 @@ class Refine:
         raw_filename_min: str = None,
         params: Dict[str, int] = None,
     ) -> None:
-        # init ray
-        ray.shutdown()
-        ray.init(num_cpus=psutil.cpu_count(logical=False))
-
         # load data from csv
         r_pd = pd.read_csv(
             raw_filename_min, sep=",", dtype={"date": object, "time": object}

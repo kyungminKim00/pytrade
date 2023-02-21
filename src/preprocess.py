@@ -22,9 +22,6 @@ class SequentialDataSet:
         determinable_candle: int = 3,
         offset: int = None,
     ) -> None:
-        if ray.is_initialized():
-            ray.init()
-
         self._debug = debug
         self._candle_size = candle_size
         self._w_size = w_size

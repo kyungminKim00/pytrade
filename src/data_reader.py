@@ -2,9 +2,11 @@ import random
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
-import ray
 import torch
 from torch.utils.data import Dataset
+
+on_his_delete = True
+histogram_dict = {}
 
 
 class DataReader(Dataset):
@@ -93,6 +95,12 @@ class DataReader(Dataset):
                 p_id = max_number + 1
                 self.pattern_dict[pttn] = p_id
             p_id = self.pattern_dict[pttn]
+
+            if on_his_delete:
+                if histogram_dict.get(p_id) is None:
+                    histogram_dict[p_id] = 0
+                else:
+                    histogram_dict[p_id] = histogram_dict[p_id] + 1
 
             return p_id
 

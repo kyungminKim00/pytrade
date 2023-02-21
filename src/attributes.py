@@ -1,15 +1,25 @@
-# import numpy as np
 import itertools
 
+import numpy as np
 import pandas as pd
 import ray
 
-prefix = "spd_"
+prefix = "feature_cont_"
+prefix_b = "feature_binary_"
+
 
 # 병렬처리 적용
 @ray.remote
 def spread_parallel(analyse_data, f_prc, i_prc):
     return spread(analyse_data, f_prc, i_prc)
+
+
+@ray.remote
+def binary_parallel(df, f_prc, i_prc):
+    return pd.Series(
+        np.where(df[f_prc] - df[i_prc] > 0, 1, -1),
+        index=df.index,
+    )
 
 
 # Spread 일함수
@@ -62,7 +72,7 @@ def spread_close_maginot(
     analyse_data_ref,
 ):
     spread_futures = [
-        spread_parallel.remote(analyse_data_ref, "close", i_prc)
+        binary_parallel.remote(analyse_data_ref, "close", i_prc)
         for i_prc in [
             "10_lower_maginot",
             "10_upper_maginot",
@@ -84,7 +94,7 @@ def spread_close_maginot(
         ]
     ):
         f_prc = "close"
-        processed_data[f"{prefix}{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
+        processed_data[f"{prefix_b}{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
 
     return processed_data
 
@@ -95,13 +105,13 @@ def confidence_candle_1(
     analyse_data_ref,
 ):
     spread_futures = [
-        spread_parallel.remote(analyse_data_ref, "close", i_prc)
+        binary_parallel.remote(analyse_data_ref, "close", i_prc)
         for i_prc in ["high", "low"]
     ]
 
     for i, i_prc in enumerate(["high", "low"]):
         f_prc = "close"
-        processed_data[f"{prefix}{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
+        processed_data[f"{prefix_b}{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
 
     return processed_data
 
@@ -119,7 +129,7 @@ def confidence_spread_candle(
     for candle_size in _candle_size:
         for i_prc in ["high", "low", "open"]:
             spread_futures.append(
-                spread_parallel.remote(
+                binary_parallel.remote(
                     analyse_data_ref, "close", f"{candle_size}mins_{i_prc}"
                 )
             )
@@ -129,6 +139,6 @@ def confidence_spread_candle(
     ):
         i_prc = f"{candle_size}mins_{w_size}"
         f_prc = "close"
-        processed_data[f"{prefix}{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
+        processed_data[f"{prefix_b}{f_prc}_{i_prc}"] = ray.get(spread_futures[i])
 
     return processed_data

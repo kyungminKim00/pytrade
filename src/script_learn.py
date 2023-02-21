@@ -16,10 +16,6 @@ from preprocess import SequentialDataSet
 from quantile_discretizer import QuantileDiscretizer
 from util import print_c, print_flush
 
-# if ray.is_initialized():
-#     ray.init()
-
-
 # 전처리 완료 데이터
 offset = 35000  # small data or operating data
 offset = None  # practical data
@@ -39,7 +35,7 @@ dump(sequential_data, "./src/assets/sequential_data.pkl")
 processed_data = load("./src/assets/sequential_data.pkl")
 
 # 변수 설정
-x_real = [c for c in processed_data.train_data.columns if "spd" in c]
+x_real = [c for c in processed_data.train_data.columns if "feature" in c]
 y_real = ["y_rtn_close"]
 
 ## [지우기] 전처리 완료 데이터 저장 - 사용 하지 않음 (modin.pandas 오류시 고려하기)

@@ -12,10 +12,6 @@ import ray
 
 class Aggregator:
     def __init__(self, data: pd.DataFrame) -> None:
-        # init ray
-        if ray.is_initialized():
-            ray.init(num_cpus=psutil.cpu_count(logical=False))
-
         self.data = data
         self.alpha, self.beta = 20, 20
         self.maginot_memory_fix = 500
@@ -156,7 +152,6 @@ class Aggregator:
             return maginot
 
     def collect_prices(self, h_data: np.array) -> np.array:
-
         decision_table = np.abs(h_data["High"] - h_data["Close"]) > np.abs(
             h_data["Low"] - h_data["Close"]
         )
