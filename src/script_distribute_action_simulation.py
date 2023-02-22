@@ -162,5 +162,80 @@ dump(dataset.pattern_dict, "./src/assets/pattern_dict.pkl")
 print(f"dataset.pattern_dict: {dataset.pattern_dict}")
 
 
-"""[검증 데이터 활용 섹션]
+"""[Q-Learning]
 """
+
+# Define the Q-Table
+num_states = 10
+num_actions = 2
+q_table = np.zeros((num_states, num_actions))
+
+# Define the learning rate and discount factor
+learning_rate = 0.1
+discount_factor = 0.9
+
+# Define the exploration rate and decay rate
+exploration_rate = 1.0
+min_exploration_rate = 0.01
+decay_rate = 0.001
+
+# Define the rewards and transition function
+rewards = np.array(
+    [
+        [0, 1],
+        [5, 10],
+        [0, 1],
+        [5, 10],
+        [0, 1],
+        [5, 10],
+        [0, 1],
+        [5, 10],
+        [0, 1],
+        [10, 20],
+    ]
+)
+transition = np.array(
+    [[1, 2], [3, 4], [5, 6], [7, 8], [9, 0], [1, 2], [3, 4], [5, 6], [7, 8], [9, 0]]
+)
+
+# Define the Q-Learning algorithm
+for episode in range(1000):
+    state = np.random.randint(0, num_states)
+    done = False
+    while not done:
+        # Select an action using the exploration rate
+        if np.random.uniform(0, 1) < exploration_rate:
+            action = np.random.randint(0, num_actions)
+        else:
+            action = np.argmax(q_table[state, :])
+
+        # Get the next state and reward
+        next_state = transition[state, action]
+        reward = rewards[state, action]
+
+        # Update the Q-Table
+        q_table[state, action] = (1 - learning_rate) * q_table[
+            state, action
+        ] + learning_rate * (reward + discount_factor * np.max(q_table[next_state, :]))
+
+        # Update the state and exploration rate
+        state = next_state
+        exploration_rate = min_exploration_rate + (1 - min_exploration_rate) * np.exp(
+            -decay_rate * episode
+        )
+
+        # Check if the episode is done
+        if state == 0:
+            done = True
+
+# Test the Q-Learning algorithm
+state = 0
+done = False
+while not done:
+    action = np.argmax(q_table[state, :])
+    next_state = transition[state, action]
+    reward = rewards[state, action]
+    print("State: ", state, " Action: ", action, " Reward: ", reward)
+    state = next_state
+    if state == 0:
+        done = True
