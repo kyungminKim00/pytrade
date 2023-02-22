@@ -11,8 +11,9 @@
 local_data
 *.pt
 *.csv
-
-
+*.jpeg
+*.pkl
+*.pyc
 
 # Generated files
 .idea/**/contentModel.xml
@@ -218,5 +219,5 @@ cython_debug/
 
 /scripts/dev-environment/pyproject.toml
 /cache
-src/assets/validation_data.csv
+
 assets/

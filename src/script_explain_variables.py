@@ -21,19 +21,19 @@ w_size = (9, 50, 100)
 alpha = [3.5]
 
 for _candle_size in candle_size:
-    # 전처리 완료 데이터
-    offset = 35000  # small data or operating data
-    offset = None  # practical data
+    # # 전처리 완료 데이터
+    # offset = 35000  # small data or operating data
+    # # offset = None  # practical data
 
-    sequential_data = SequentialDataSet(
-        raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-        pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
-        candle_size=_candle_size,
-        w_size=w_size,
-        debug=False,
-        offset=offset,
-    )
-    dump(sequential_data, "./src/assets/sequential_data.pkl")
+    # sequential_data = SequentialDataSet(
+    #     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+    #     pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+    #     candle_size=_candle_size,
+    #     w_size=w_size,
+    #     debug=False,
+    #     offset=offset,
+    # )
+    # dump(sequential_data, "./src/assets/sequential_data.pkl")
 
     # 전처리 완료 데이터 로드
     processed_data = load("./src/assets/sequential_data.pkl")

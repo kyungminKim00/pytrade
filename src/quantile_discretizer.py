@@ -46,17 +46,31 @@ class QuantileDiscretizer:
         #     self.n_bins[attr] = 2
 
     def discretizer_learn_save(self, obj_fn: str):
+        # discretizer = {
+        #     # 이산화 모형
+        #     "model": KBinsDiscretizer(
+        #         n_bins=self.n_bins.values, encode="ordinal", strategy="uniform"
+        #     ).fit(self.clipped_vectors.to_numpy()),
+        #     "mean": self.mean.values,
+        #     "std": self.std.values,
+        #     "n_bins": self.n_bins.values,
+        #     "lower": self.lower.values,
+        #     "upper": self.upper.values,
+        #     # 데이터의 순서쌍이 일치하는지 검증 키 - 간혹 버젼 os 특성으로 컬럼의 순서가 바뀌는 경우가 있음
+        #     "valide_key": list(self.clipped_vectors.columns),
+        # }
+
         discretizer = {
             # 이산화 모형
             "model": KBinsDiscretizer(
-                n_bins=self.n_bins.values, encode="ordinal", strategy="uniform"
+                n_bins=self.n_bins, encode="ordinal", strategy="uniform"
             ).fit(self.clipped_vectors.to_numpy()),
-            # 이상치 처리 및 패턴 인덱스 생성을 위한 파라미터
-            # "mean": self.mean.values,
-            # "std": self.std.values,
-            # "n_bins": self.n_bins.values,
-            "lower": self.lower.values,
-            "upper": self.upper.values,
+            "mean": self.mean,
+            "std": self.std,
+            "n_bins": self.n_bins,
+            "lower": self.lower,
+            "upper": self.upper,
+            "vectors": self.clipped_vectors,  # Delete later
             # 데이터의 순서쌍이 일치하는지 검증 키 - 간혹 버젼 os 특성으로 컬럼의 순서가 바뀌는 경우가 있음
             "valide_key": list(self.clipped_vectors.columns),
         }
