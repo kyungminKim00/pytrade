@@ -11,7 +11,7 @@ from sklearn.preprocessing import KBinsDiscretizer
 # df.index.name = "ttt"
 # df.to_csv("./test.csv")
 
-obj_fn = "./src/assets/discretizer.pkl"
+obj_fn = "./src/local_data/assets/discretizer.pkl"
 df = pd.read_csv("./test.csv")
 df.set_index("ttt", inplace=True)
 
@@ -40,7 +40,7 @@ dump(discretizer, obj_fn)
 # assert False, "discretizer TEST1 DONE"
 
 # test 2
-obj_fn = "./src/assets/discretizer.pkl"
+obj_fn = "./src/local_data/assets/discretizer.pkl"
 discretizer = load(obj_fn)
 lower = discretizer["lower"]
 upper = discretizer["upper"]

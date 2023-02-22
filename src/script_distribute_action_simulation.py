@@ -55,22 +55,22 @@ sup_inf = {
     "feature_binary_close_60mins_open": {"sup": 0.004, "inf": -0.005},
 }
 
-# # 전처리 완료 데이터
-# offset = 35000  # small data or operating data
-# offset = None  # practical data
+# 전처리 완료 데이터
+offset = 35000  # small data or operating data
+offset = None  # practical data
 
-# sequential_data = SequentialDataSet(
-#     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-#     pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
-#     candle_size=candle_size,
-#     w_size=w_size,
-#     debug=False,
-#     offset=offset,
-# )
-# dump(sequential_data, "./src/assets/sequential_data.pkl")
+sequential_data = SequentialDataSet(
+    raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+    pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+    candle_size=candle_size,
+    w_size=w_size,
+    debug=False,
+    offset=offset,
+)
+dump(sequential_data, "./src/local_data/assets/sequential_data.pkl")
 
 # 전처리 완료 데이터 로드
-processed_data = load("./src/assets/sequential_data.pkl")
+processed_data = load("./src/local_data/assets/sequential_data.pkl")
 
 # 변수 설정
 x_real = [c for c in processed_data.train_data.columns if "feature" in c]
@@ -84,16 +84,16 @@ for i, col in enumerate(x_real):
 action_table.replace(True, 1, inplace=True)
 action_table.replace(False, 0, inplace=True)
 action_table["y_rtn_close"] = processed_data.train_data["y_rtn_close"]
-action_table.to_csv("./src/assets/action_table.csv")
+action_table.to_csv("./src/local_data/assets/action_table.csv")
 
 assert False, "action_table"
 
 # 이산화 모듈 저장
 qd = QuantileDiscretizer(processed_data.train_data, x_real, alpha=alpha)
-qd.discretizer_learn_save("./src/assets/discretizer.pkl")
+qd.discretizer_learn_save("./src/local_data/assets/discretizer.pkl")
 
 # 이산화 모형 로드
-discretizer = load("./src/assets/discretizer.pkl")
+discretizer = load("./src/local_data/assets/discretizer.pkl")
 
 for col in discretizer["vectors"].columns:
     fig = px.line(
@@ -113,7 +113,7 @@ assert False, "ddd"
 # DataReader configure
 manager = Manager()
 shared_dict = manager.dict()
-shared_dict.update(load("./src/assets/pattern_dict.pkl"))
+shared_dict.update(load("./src/local_data/assets/pattern_dict.pkl"))
 train_dataset = DataReader(
     df=processed_data.train_data,
     sequence_length=None,
@@ -158,7 +158,7 @@ assert False, "Done"
 
 
 # 새롭게 추가된 패턴 저장
-dump(dataset.pattern_dict, "./src/assets/pattern_dict.pkl")
+dump(dataset.pattern_dict, "./src/local_data/assets/pattern_dict.pkl")
 print(f"dataset.pattern_dict: {dataset.pattern_dict}")
 
 

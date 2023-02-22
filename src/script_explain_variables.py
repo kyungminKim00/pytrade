@@ -33,10 +33,10 @@ for _candle_size in candle_size:
     #     debug=False,
     #     offset=offset,
     # )
-    # dump(sequential_data, "./src/assets/sequential_data.pkl")
+    # dump(sequential_data, "./src/local_data/assets/sequential_data.pkl")
 
     # 전처리 완료 데이터 로드
-    processed_data = load("./src/assets/sequential_data.pkl")
+    processed_data = load("./src/local_data/assets/sequential_data.pkl")
 
     # 변수 설정
     x_real = [c for c in processed_data.train_data.columns if "feature" in c]
@@ -51,15 +51,15 @@ for _candle_size in candle_size:
     for _alpha in alpha:
         # # 저장 했으면 disable
         # qd = QuantileDiscretizer(processed_data.train_data, x_real, alpha=_alpha)
-        # qd.discretizer_learn_save("./src/assets/discretizer.pkl")
+        # qd.discretizer_learn_save("./src/local_data/assets/discretizer.pkl")
 
         # 이산화 모형 로드
-        dct = load("./src/assets/discretizer.pkl")
+        dct = load("./src/local_data/assets/discretizer.pkl")
 
         # DataReader configure
         manager = Manager()
         shared_dict = manager.dict()
-        shared_dict.update(load("./src/assets/pattern_dict.pkl"))
+        shared_dict.update(load("./src/local_data/assets/pattern_dict.pkl"))
         train_dataset = DataReader(
             df=processed_data.train_data,
             sequence_length=None,
@@ -106,7 +106,7 @@ assert False, "Done"
 
 
 # 새롭게 추가된 패턴 저장
-dump(dataset.pattern_dict, "./src/assets/pattern_dict.pkl")
+dump(dataset.pattern_dict, "./src/local_data/assets/pattern_dict.pkl")
 print(f"dataset.pattern_dict: {dataset.pattern_dict}")
 
 

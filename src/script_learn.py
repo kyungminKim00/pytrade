@@ -29,10 +29,10 @@ sequential_data = SequentialDataSet(
 )
 end = time()
 print(f"\n== Time cost for [SequentialDataSet] : {end - start}")
-dump(sequential_data, "./src/assets/sequential_data.pkl")
+dump(sequential_data, "./src/local_data/assets/sequential_data.pkl")
 
 # 전처리 완료 데이터 로드
-processed_data = load("./src/assets/sequential_data.pkl")
+processed_data = load("./src/local_data/assets/sequential_data.pkl")
 
 # 변수 설정
 x_real = [c for c in processed_data.train_data.columns if "feature" in c]
@@ -49,20 +49,20 @@ y_real = ["y_rtn_close"]
 # }
 # dump(
 #     processed_data,
-#     "./src/assets/sequential_data.pkl",
+#     "./src/local_data/assets/sequential_data.pkl",
 # )
 ##  [지우기] 전처리 데이터 로드 - 사용 하지 않음 (modin.pandas 오류시 고려하기)
-# processed_data = load("./src/assets/sequential_data.pkl")
+# processed_data = load("./src/local_data/assets/sequential_data.pkl")
 
 
 """[학습 데이터 활용 섹션]
 """
 # 이산화 모듈 저장
 qd = QuantileDiscretizer(processed_data.train_data, x_real)
-qd.discretizer_learn_save("./src/assets/discretizer.pkl")
+qd.discretizer_learn_save("./src/local_data/assets/discretizer.pkl")
 
 # 이산화 모형 로드
-dct = load("./src/assets/discretizer.pkl")
+dct = load("./src/local_data/assets/discretizer.pkl")
 
 train_dataset = DataReader(
     df=processed_data.train_data,
@@ -71,7 +71,7 @@ train_dataset = DataReader(
     discretizer=dct,
     known_real=x_real,
     unknown_real=y_real,
-    pattern_dict=load("./src/assets/pattern_dict.pkl"),
+    pattern_dict=load("./src/local_data/assets/pattern_dict.pkl"),
 )
 
 start = time()
@@ -107,7 +107,7 @@ assert False, "Done"
 
 
 # 새롭게 추가된 패턴 저장
-dump(dataset.pattern_dict, "./src/assets/pattern_dict.pkl")
+dump(dataset.pattern_dict, "./src/local_data/assets/pattern_dict.pkl")
 print(f"dataset.pattern_dict: {dataset.pattern_dict}")
 
 

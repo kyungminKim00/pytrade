@@ -86,7 +86,7 @@ class SequentialDataSet:
         print_c("Analyse Data Ready: OK")
 
         if self._debug:
-            analyse_data.to_csv("./assets/analyse_data.csv")
+            analyse_data.to_csv("./src/local_data/assets/analyse_data.csv")
             print_c("Export analyse_data: OK")
 
         return analyse_data
@@ -174,8 +174,8 @@ class SequentialDataSet:
     #             employed = "load.pandas"
 
     #         if is_pandas:
-    #             v.to_csv(f"./src/assets/{k}.csv")
-    #             state[k] = f"[{employed}]./src/assets/{k}.csv"
+    #             v.to_csv(f"./src/local_data/assets/{k}.csv")
+    #             state[k] = f"[{employed}]./src/local_data/assets/{k}.csv"
     #     return state
 
     # def __setstate__(self, state):
