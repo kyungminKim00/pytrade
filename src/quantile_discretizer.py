@@ -18,8 +18,9 @@ class QuantileDiscretizer:
         std = df.std(axis=0, ddof=1)
 
         # 이상치 처리
-        self.lower = mean - 3 * std
-        self.upper = mean + 3 * std
+        print_c("QuantileDiscretizer 이상치 처리 테스트 나중에 지우기")
+        self.lower = mean - 8 * std
+        self.upper = mean + 8 * std
         # for attr in binary_attr:
         #     self.lower[attr] = -1
         #     self.upper[attr] = 1
@@ -49,7 +50,7 @@ class QuantileDiscretizer:
         # discretizer = {
         #     # 이산화 모형
         #     "model": KBinsDiscretizer(
-        #         n_bins=self.n_bins.values, encode="ordinal", strategy="uniform"
+        #         n_bins=self.n_bins.values, encode="ordinal", strategy="quantile"
         #     ).fit(self.clipped_vectors.to_numpy()),
         #     "mean": self.mean.values,
         #     "std": self.std.values,
@@ -63,7 +64,7 @@ class QuantileDiscretizer:
         discretizer = {
             # 이산화 모형
             "model": KBinsDiscretizer(
-                n_bins=self.n_bins, encode="ordinal", strategy="uniform"
+                n_bins=self.n_bins, encode="ordinal", strategy="quantile"
             ).fit(self.clipped_vectors.to_numpy()),
             "mean": self.mean,
             "std": self.std,
