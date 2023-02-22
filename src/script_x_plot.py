@@ -24,7 +24,7 @@ alpha = 3.5
 
 # 전처리 완료 데이터
 offset = 35000  # small data or operating data
-offset = None  # practical data
+# offset = None  # practical data
 
 sequential_data = SequentialDataSet(
     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
