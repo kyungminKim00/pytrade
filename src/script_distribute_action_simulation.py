@@ -130,18 +130,23 @@ def simulation_exhaussted(idx, num_estimators, obj_ref):
 print_c("simulation_exhaussted - mp")
 obj_ref = ray.put(action_table)
 num_estimators = action_table.shape[1] - 1
-res = np.array(
-    ray.get(
-        [
-            simulation_exhaussted.remote(idx_estimator, num_estimators, obj_ref)
-            for idx_estimator in range(2**num_estimators)
-        ]
-    )
+res = ray.get(
+    [
+        simulation_exhaussted.remote(idx_estimator, num_estimators, obj_ref)
+        for idx_estimator in range(2**num_estimators)
+    ]
 )
 dump(res, "./src/local_data/assets/action_table_result.pkl")
 
-idx = np.argmax(res[:, 0], axis=0)
-print(res[idx, :])
+selected_mask, best_mask = [], []
+best_score = 0
+for k, v in res:
+    if k > 0.29:
+        selected_mask.append(v)
+        if k > best_score:
+            best_score = k
+            best_mask = v
+print(f"best_score: {best_score} best_mask: {best_mask}")
 
 assert False, "action_table"
 
