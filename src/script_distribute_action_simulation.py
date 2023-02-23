@@ -55,19 +55,20 @@ sup_inf = {
     "feature_binary_close_60mins_open": {"sup": 0.004, "inf": -0.005},
 }
 
-# 전처리 완료 데이터
-offset = 35000  # small data or operating data
-offset = None  # practical data
+# # 전처리 완료 데이터
+# offset = 35000  # small data or operating data
+# offset = None  # practical data
 
-sequential_data = SequentialDataSet(
-    raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-    pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
-    candle_size=candle_size,
-    w_size=w_size,
-    debug=False,
-    offset=offset,
-)
-dump(sequential_data, "./src/local_data/assets/sequential_data.pkl")
+# print_c("SequentialDataSet 생성")
+# sequential_data = SequentialDataSet(
+#     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+#     pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+#     candle_size=candle_size,
+#     w_size=w_size,
+#     debug=False,
+#     offset=offset,
+# )
+# dump(sequential_data, "./src/local_data/assets/sequential_data.pkl")
 
 # 전처리 완료 데이터 로드
 processed_data = load("./src/local_data/assets/sequential_data.pkl")
@@ -89,13 +90,14 @@ y_real = ["y_rtn_close"]
 
 
 # naive estimator - method 2
-print("naive estimator - method 2")
+print_c("naive estimator - method 2")
 action_table = pd.DataFrame()
 action_table.index = processed_data.train_data.index
 for _, col in enumerate(x_real):
     aa = np.where(processed_data.train_data[col] > sup_inf[col]["sup"], 1, 0)
     bb = np.where(processed_data.train_data[col] < sup_inf[col]["inf"], -1, 0)
-    action_table[f"F{col}"] = aa + bb
+    action_table[col] = aa + bb
+action_table["y_rtn_close"] = processed_data.train_data["y_rtn_close"]
 action_table.to_csv("./src/local_data/assets/action_table.csv")
 
 
@@ -118,13 +120,13 @@ def simulation_exhaussted(idx, num_estimators, obj_ref):
 
     rtn = rtn_buy + rtn_sell
 
-    if rtn > 0.1:
-        print(f"rtn: {rtn}")
+    if rtn > 0.29:
+        print(f"rtn: {rtn} mask: {mask}")
 
     return (rtn, mask)
 
 
-print("simulation_exhaussted - mp")
+print_c("simulation_exhaussted - mp")
 obj_ref = ray.put(action_table)
 num_estimators = action_table.shape[1] - 1
 res = np.array(
