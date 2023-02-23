@@ -76,15 +76,69 @@ processed_data = load("./src/local_data/assets/sequential_data.pkl")
 x_real = [c for c in processed_data.train_data.columns if "feature" in c]
 y_real = ["y_rtn_close"]
 
-print(x_real)
+# # naive estimator - method 1
+# print("naive estimator - method 1")
+# action_table = pd.DataFrame()
+# for i, col in enumerate(x_real):
+#     action_table[f"F{2*i}"] = processed_data.train_data[col] > sup_inf[col]["sup"]
+#     action_table[f"F{(2*i)+1}"] = processed_data.train_data[col] < sup_inf[col]["inf"]
+# action_table.replace(True, 1, inplace=True)
+# action_table.replace(False, 0, inplace=True)
+# action_table["y_rtn_close"] = processed_data.train_data["y_rtn_close"]
+# action_table.to_csv("./src/local_data/assets/action_table.csv")
+
+
+# naive estimator - method 2
+print("naive estimator - method 2")
 action_table = pd.DataFrame()
-for i, col in enumerate(x_real):
-    action_table[f"F{2*i}"] = processed_data.train_data[col] > sup_inf[col]["sup"]
-    action_table[f"F{(2*i)+1}"] = processed_data.train_data[col] < sup_inf[col]["inf"]
-action_table.replace(True, 1, inplace=True)
-action_table.replace(False, 0, inplace=True)
-action_table["y_rtn_close"] = processed_data.train_data["y_rtn_close"]
+action_table.index = processed_data.train_data.index
+for _, col in enumerate(x_real):
+    aa = np.where(processed_data.train_data[col] > sup_inf[col]["sup"], 1, 0)
+    bb = np.where(processed_data.train_data[col] < sup_inf[col]["inf"], -1, 0)
+    action_table[f"F{col}"] = aa + bb
 action_table.to_csv("./src/local_data/assets/action_table.csv")
+
+
+# simulate vote - with ray 시간 오래 걸림
+@ray.remote
+def simulation_exhaussted(idx, num_estimators, obj_ref):
+    binaryNum = format(idx, "b")
+    mask = [0] * (num_estimators - len(binaryNum)) + [int(digit) for digit in binaryNum]
+    t_data = obj_ref.iloc[:, :-1] * mask
+    t_data[1:] = t_data[1:].replace(0, np.nan)
+    t_data = np.array(t_data.fillna(method="ffill"))
+
+    decision = t_data.sum(axis=1)
+    decision = np.where(decision > 0, 1, 0)
+    rtn_buy = (decision * obj_ref["y_rtn_close"]).sum()
+
+    decision = t_data.sum(axis=1)
+    decision = np.where(decision < 0, -1, 0)
+    rtn_sell = (decision * obj_ref["y_rtn_close"]).sum()
+
+    rtn = rtn_buy + rtn_sell
+
+    if rtn > 0.1:
+        print(f"rtn: {rtn}")
+
+    return (rtn, mask)
+
+
+print("simulation_exhaussted - mp")
+obj_ref = ray.put(action_table)
+num_estimators = action_table.shape[1] - 1
+res = np.array(
+    ray.get(
+        [
+            simulation_exhaussted.remote(idx_estimator, num_estimators, obj_ref)
+            for idx_estimator in range(2**num_estimators)
+        ]
+    )
+)
+dump(res, "./src/local_data/assets/action_table_result.pkl")
+
+idx = np.argmax(res[:, 0], axis=0)
+print(res[idx, :])
 
 assert False, "action_table"
 
