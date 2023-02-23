@@ -55,20 +55,20 @@ sup_inf = {
     "feature_binary_close_60mins_open": {"sup": 0.004, "inf": -0.005},
 }
 
-# # 전처리 완료 데이터
-# offset = 35000  # small data or operating data
-# offset = None  # practical data
+# 전처리 완료 데이터
+offset = 35000  # small data or operating data
+offset = None  # practical data
 
-# print_c("SequentialDataSet 생성")
-# sequential_data = SequentialDataSet(
-#     raw_filename_min="./src/local_data/raw/dax_tm3.csv",
-#     pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
-#     candle_size=candle_size,
-#     w_size=w_size,
-#     debug=False,
-#     offset=offset,
-# )
-# dump(sequential_data, "./src/local_data/assets/sequential_data.pkl")
+print_c("SequentialDataSet 생성")
+sequential_data = SequentialDataSet(
+    raw_filename_min="./src/local_data/raw/dax_tm3.csv",
+    pivot_filename_day="./src/local_data/intermediate/dax_intermediate_pivots.csv",
+    candle_size=candle_size,
+    w_size=w_size,
+    debug=False,
+    offset=offset,
+)
+dump(sequential_data, "./src/local_data/assets/sequential_data.pkl")
 
 # 전처리 완료 데이터 로드
 processed_data = load("./src/local_data/assets/sequential_data.pkl")
