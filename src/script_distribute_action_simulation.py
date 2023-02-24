@@ -142,7 +142,7 @@ action_table.fillna(method="ffill", inplace=True)
 action_table.to_csv("./src/local_data/assets/action_table.csv")
 
 
-# simulate vote - with ray 시간 오래 걸림
+# simulate vote - with ray 시간 오래 걸림 - 데이터를 60분봉으로 줄여서 보는 것도 별 차이 없을 듯
 @ray.remote(num_cpus=4)
 def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
     if not os.path.isfile(path):
