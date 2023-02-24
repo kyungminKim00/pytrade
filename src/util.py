@@ -161,6 +161,32 @@ def funTime(func_name):
     print("\n== Time cost for [{0}] : {1}".format(func_name, interval))
 
 
+def batch_idx(s_idx, e_idx, batch_size):
+    for i in range(s_idx, e_idx, batch_size):
+        if i + batch_size > e_idx:
+            to = e_idx
+        else:
+            to = i + batch_size
+        yield np.arange(i, to).tolist()
+
+
+class my_json:
+    def load(filename):
+        json_file = open(filename, "r")
+        json_data = json.load(json_file)
+        json_file.close()
+
+        print_c(f"load {filename}")
+        return json_data
+
+    def dump(ojb, filename):
+        json_file = open(filename, "w")
+        json.dump(ojb, json_file)
+        json_file.close()
+
+        print_c(f"{filename} saved")
+
+
 def dict2json(file_name, _dict):
     # Save to json
     with open(file_name, "w") as f_out:

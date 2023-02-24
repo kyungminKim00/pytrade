@@ -1,4 +1,3 @@
-import json
 import random
 from multiprocessing import Manager
 from time import time
@@ -15,7 +14,7 @@ from tqdm import tqdm
 from data_reader import DataReader
 from preprocess import SequentialDataSet
 from quantile_discretizer import QuantileDiscretizer
-from util import print_c, print_flush
+from util import batch_idx, my_json, print_c, print_flush
 
 """Parameter Configuration
 """
@@ -107,56 +106,56 @@ action_table.to_csv("./src/local_data/assets/action_table.csv")
 
 # simulate vote - with ray 시간 오래 걸림
 @ray.remote(num_cpus=4)
-def simulation_exhaussted(idx, num_estimators, obj_ref, y_rtn_close_ref):
-    print(f"idx: {idx}")
-    binaryNum = format(idx, "b")
-    code = [int(digit) for digit in binaryNum]
-    mask = [0] * (num_estimators - len(code)) + code
+def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
+    for idx in batch_i:
+        print(f"idx: {idx}")
+        binaryNum = format(idx, "b")
+        code = [int(digit) for digit in binaryNum]
+        mask = [0] * (num_estimators - len(code)) + code
 
-    t_data = obj_ref * mask
-    # t_data[1:] = t_data[1:].replace(0, np.nan)
-    # t_data = np.array(t_data.fillna(method="ffill"))
+        t_data = obj_ref * mask
+        # t_data[1:] = t_data[1:].replace(0, np.nan)
+        # t_data = np.array(t_data.fillna(method="ffill"))
 
-    decision = t_data.sum(axis=1)
-    decision = np.where(decision > 0, 1, 0)
-    rtn_buy = (decision * y_rtn_close_ref).sum()
+        decision = t_data.sum(axis=1)
+        decision = np.where(decision > 0, 1, 0)
+        rtn_buy = (decision * y_rtn_close_ref).sum()
 
-    decision = t_data.sum(axis=1)
-    decision = np.where(decision < 0, -1, 0)
-    rtn_sell = (decision * y_rtn_close_ref).sum()
+        decision = t_data.sum(axis=1)
+        decision = np.where(decision < 0, -1, 0)
+        rtn_sell = (decision * y_rtn_close_ref).sum()
 
-    rtn = rtn_buy + rtn_sell
+        rtn = rtn_buy + rtn_sell
 
-    if rtn > 0.31:
-        # 자꾸 프로세스 Hanhg 됨
-        print(f"rtn: {rtn} mask: {mask}")
+        if rtn > 0.31:
+            # 자꾸 프로세스 Hanhg 됨
+            print(f"rtn: {rtn} mask: {mask}")
 
-        path = "./src/local_data/assets/mask_result.json"
-        with open(path, "r") as json_file:
-            json_data = json.load(json_file)
+            data = my_json.load(path)
+            data[idx] = {"rtn": rtn, "mask": mask}
+            my_json.dump(data, path)
 
-        json_data[idx] = {"rtn": rtn, "mask": mask}
-        with open(path, "w") as path:
-            json.dump(json_data, path)
-
-    return (rtn, mask)
+    return f"save result to {path}"
 
 
 print_c("simulation_exhaussted - mp")
+path = "./src/local_data/assets/mask_result.json"
 obj_ref = ray.put(np.array(action_table.iloc[:, :-1]))
 y_rtn_close_ref = ray.put(action_table["y_rtn_close"])
 num_estimators = action_table.shape[1] - 1
+start_idx = 1
 res = ray.get(
     [
         simulation_exhaussted.remote(
-            idx_estimator, num_estimators, obj_ref, y_rtn_close_ref
+            idx_estimator, num_estimators, obj_ref, y_rtn_close_ref, path
         )
-        for idx_estimator in range(2**num_estimators)
+        # for idx_estimator in range(start_idx, 2**num_estimators)
+        for idx_estimator in batch_idx(start_idx, 2**num_estimators, 10000)
     ]
 )
-dump(res, "./src/local_data/assets/action_table_result.pkl")
 
 print_c("collect score")
+res = my_json.load(path)
 selected_mask, best_mask = [], []
 best_score = 0
 for k, v in res:
