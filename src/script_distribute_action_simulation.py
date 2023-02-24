@@ -4,6 +4,7 @@ from multiprocessing import Manager
 from time import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import bottleneck as bn
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -78,6 +79,42 @@ processed_data = load("./src/local_data/assets/sequential_data.pkl")
 x_real = [c for c in processed_data.train_data.columns if "feature" in c]
 y_real = ["y_rtn_close"]
 
+# supremum, infimum 탐색
+for col, sup_inf_dct in sup_inf.items():
+    data = processed_data.train_data[col]
+    max_val = data.max()
+    min_val = data.min()
+    mean_val = data.mean()
+
+    sub_range = np.arange(mean_val, max_val, (max_val - mean_val) / 100).tolist()
+    inf_range = np.arange(min_val, mean_val, (mean_val - min_val) / 100).tolist()
+
+    if sup_inf_dct["sup"] != np.inf:  # supremum 탐색
+        res = np.array(
+            [
+                (some_val, np.where(data < some_val, 1, 0).sum())
+                for some_val in sub_range
+            ]
+        )
+        move_std = bn.move_std(res[:, 1], window=50, axis=0)
+        std_diff = np.diff(move_std)
+        some_value = None
+
+        sup_inf[col]["sup"] = some_value
+    elif sup_inf_dct["inf"] != -np.inf:  # infimum 탐색
+        res = np.array(
+            [
+                (some_val, np.where(data > some_val, 1, 0).sum())
+                for some_val in inf_range
+            ]
+        )
+        move_std = bn.move_std(res[:, 1], window=50, axis=0)
+        std_diff = np.diff(move_std)
+        some_value = None
+
+        sup_inf[col]["inf"] = some_value
+
+
 # # naive estimator - method 1
 # print("naive estimator - method 1")
 # action_table = pd.DataFrame()
@@ -110,8 +147,7 @@ action_table.to_csv("./src/local_data/assets/action_table.csv")
 def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
     if not os.path.isfile(path):
         my_json.dump({}, path)
-    else:
-        data = my_json.load(path)
+    data = my_json.load(path)
 
     for idx in batch_i:
         binaryNum = format(idx, "b")
@@ -133,7 +169,7 @@ def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, pat
         rtn = rtn_buy + rtn_sell
 
         # print(f"idx: {idx}")
-        if rtn > 0.31:
+        if rtn > 0.33:
             # 메모리 overflow -> 결과 산출 할 때마다 파일로 저장 해 두기
             print(f"idx: {idx}, rtn: {rtn} mask: {mask}")
             data[idx] = {"rtn": rtn, "mask": mask}
@@ -149,8 +185,8 @@ y_rtn_close_ref = ray.put(action_table["y_rtn_close"])
 
 path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
-start_idx = 40030
-
+start_idx, end_idx = 40030, 2**num_estimators
+batch = 5000
 res = ray.get(
     [
         simulation_exhaussted.remote(
@@ -161,12 +197,22 @@ res = ray.get(
             f"{path}_{idx_estimator[0]}.json",
         )
         # for idx_estimator in range(start_idx, 2**num_estimators)
-        for idx_estimator in batch_idx(start_idx, 2**num_estimators, 10000)
+        for idx_estimator in batch_idx(start_idx, end_idx, batch)
     ]
 )
 
 print_c("collect score")
-res = my_json.load(path)
+# load result history
+res = None
+dir_name = "./src/local_data/assets/"
+for fn in os.listdir(dir_name):
+    if ".json" in fn:
+        tmp = my_json.load(f"{dir_name}{fn}")
+        if res is not None:
+            res.update(tmp)
+        else:
+            res = tmp
+
 selected_mask, best_mask = [], []
 best_score = 0
 for k, v in res:
