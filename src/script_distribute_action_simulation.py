@@ -128,7 +128,7 @@ def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, pat
         rtn = rtn_buy + rtn_sell
 
         if rtn > 0.31:
-            # 자꾸 프로세스 Hanhg 됨
+            # 메모리 overflow -> 결과 산출 할 때마다 파일로 저장 해 두기
             print(f"rtn: {rtn} mask: {mask}")
 
             data = my_json.load(path)
