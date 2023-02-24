@@ -108,10 +108,11 @@ action_table.to_csv("./src/local_data/assets/action_table.csv")
 # simulate vote - with ray 시간 오래 걸림
 @ray.remote(num_cpus=4)
 def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
-    if os.path.isfile(path):
+    if not os.path.isfile(path):
         my_json.dump({}, path)
     else:
         data = my_json.load(path)
+
     for idx in batch_i:
         binaryNum = format(idx, "b")
         code = [int(digit) for digit in binaryNum]
@@ -143,11 +144,13 @@ def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, pat
 
 
 print_c("simulation_exhaussted - mp")
-path = "./src/local_data/assets/mask_result"
 obj_ref = ray.put(np.array(action_table.iloc[:, :-1]))
 y_rtn_close_ref = ray.put(action_table["y_rtn_close"])
+
+path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
 start_idx = 40030
+
 res = ray.get(
     [
         simulation_exhaussted.remote(
