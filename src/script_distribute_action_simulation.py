@@ -1,3 +1,4 @@
+import json
 import random
 from multiprocessing import Manager
 from time import time
@@ -127,7 +128,16 @@ def simulation_exhaussted(idx, num_estimators, obj_ref, y_rtn_close_ref):
     rtn = rtn_buy + rtn_sell
 
     if rtn > 0.31:
+        # 자꾸 프로세스 Hanhg 됨
         print(f"rtn: {rtn} mask: {mask}")
+
+        path = "./src/local_data/assets/mask_result.json"
+        with open(path, "r") as json_file:
+            json_data = json.load(json_file)
+
+        json_data[idx] = {"rtn": rtn, "mask": mask}
+        with open(path, "w") as path:
+            json.dump(json_data, path)
 
     return (rtn, mask)
 
