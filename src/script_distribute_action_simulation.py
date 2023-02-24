@@ -108,7 +108,6 @@ action_table.to_csv("./src/local_data/assets/action_table.csv")
 @ray.remote(num_cpus=4)
 def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
     for idx in batch_i:
-        print(f"idx: {idx}")
         binaryNum = format(idx, "b")
         code = [int(digit) for digit in binaryNum]
         mask = [0] * (num_estimators - len(code)) + code
