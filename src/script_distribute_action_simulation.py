@@ -126,7 +126,7 @@ def simulation_exhaussted(idx, num_estimators, obj_ref, y_rtn_close_ref):
 
     rtn = rtn_buy + rtn_sell
 
-    if rtn > 0.29:
+    if rtn > 0.31:
         print(f"rtn: {rtn} mask: {mask}")
 
     return (rtn, mask)
