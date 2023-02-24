@@ -1,3 +1,4 @@
+import os
 import random
 from multiprocessing import Manager
 from time import time
@@ -107,6 +108,10 @@ action_table.to_csv("./src/local_data/assets/action_table.csv")
 # simulate vote - with ray 시간 오래 걸림
 @ray.remote(num_cpus=4)
 def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
+    if os.path.isfile(path):
+        my_json.dump({}, path)
+    else:
+        data = my_json.load(path)
     for idx in batch_i:
         binaryNum = format(idx, "b")
         code = [int(digit) for digit in binaryNum]
@@ -126,27 +131,31 @@ def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, pat
 
         rtn = rtn_buy + rtn_sell
 
+        # print(f"idx: {idx}")
         if rtn > 0.31:
             # 메모리 overflow -> 결과 산출 할 때마다 파일로 저장 해 두기
-            print(f"rtn: {rtn} mask: {mask}")
-
-            data = my_json.load(path)
+            print(f"idx: {idx}, rtn: {rtn} mask: {mask}")
             data[idx] = {"rtn": rtn, "mask": mask}
-            my_json.dump(data, path)
+
+    my_json.dump(data, path)
 
     return f"save result to {path}"
 
 
 print_c("simulation_exhaussted - mp")
-path = "./src/local_data/assets/mask_result.json"
+path = "./src/local_data/assets/mask_result"
 obj_ref = ray.put(np.array(action_table.iloc[:, :-1]))
 y_rtn_close_ref = ray.put(action_table["y_rtn_close"])
 num_estimators = action_table.shape[1] - 1
-start_idx = 1
+start_idx = 40030
 res = ray.get(
     [
         simulation_exhaussted.remote(
-            idx_estimator, num_estimators, obj_ref, y_rtn_close_ref, path
+            idx_estimator,
+            num_estimators,
+            obj_ref,
+            y_rtn_close_ref,
+            f"{path}_{idx_estimator[0]}.json",
         )
         # for idx_estimator in range(start_idx, 2**num_estimators)
         for idx_estimator in batch_idx(start_idx, 2**num_estimators, 10000)
@@ -158,7 +167,7 @@ res = my_json.load(path)
 selected_mask, best_mask = [], []
 best_score = 0
 for k, v in res:
-    if k > 0.29:
+    if k > 0.31:
         selected_mask.append(v)
         if k > best_score:
             best_score = k
