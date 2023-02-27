@@ -18,8 +18,6 @@ from preprocess import SequentialDataSet
 from quantile_discretizer import QuantileDiscretizer
 from util import batch_idx, my_json, print_c, print_flush
 
-ray.init(run_options={"docker": {"shm_size": "10.24g"}})
-
 candle_size = (1, 3, 5, 15, 60)
 w_size = (9, 50, 100)
 alpha = 3.5
@@ -193,7 +191,7 @@ path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
 start_idx, end_idx = 40030, 2**num_estimators
 end_idx = start_idx + 108000
-batch = 2000
+batch = 5000
 s_time = time()
 res = ray.get(
     [

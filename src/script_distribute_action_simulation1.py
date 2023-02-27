@@ -21,8 +21,6 @@ from util import batch_idx, my_json, print_c, print_flush
 
 """Parameter Configuration
 """
-ray.init(run_options={"docker": {"shm_size": "10.24g"}})
-
 if torch.cuda.is_available():
     _device = "cuda:0"
 else:
@@ -253,7 +251,7 @@ path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
 start_idx, end_idx = 40030, 2**num_estimators
 end_idx = start_idx + 108000
-batch = 2000
+batch = 200
 
 s_time = time()
 res = ray.get(
