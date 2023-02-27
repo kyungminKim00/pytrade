@@ -191,7 +191,7 @@ path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
 start_idx, end_idx = 40030, 2**num_estimators
 end_idx = start_idx + 5000
-batch = 300
+batch = 250
 s_time = time()
 res = ray.get(
     [
