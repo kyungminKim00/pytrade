@@ -16,7 +16,9 @@
 		"--gpus",
 		"all",
 		"-v",
-		"${localEnv:DATAHOME}/pytrade:/workspaces/pytrade/src/local_data"
+		"${localEnv:DATAHOME}/pytrade:/workspaces/pytrade/src/local_data",
+		"--shm-size",
+		"10.24g"
 		],
 	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
