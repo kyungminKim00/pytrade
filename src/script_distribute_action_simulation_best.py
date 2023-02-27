@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import ray
-import torch
 from joblib import dump, load
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -19,12 +18,7 @@ from preprocess import SequentialDataSet
 from quantile_discretizer import QuantileDiscretizer
 from util import batch_idx, my_json, print_c, print_flush
 
-"""Parameter Configuration
-"""
-if torch.cuda.is_available():
-    _device = "cuda:0"
-else:
-    _device = "cpu"
+ray.init(run_options={"docker": {"shm_size": "10.24g"}})
 
 candle_size = (1, 3, 5, 15, 60)
 w_size = (9, 50, 100)
@@ -150,109 +144,56 @@ action_table.to_csv("./src/local_data/assets/action_table.csv")
 
 
 # simulate vote - with ray 시간 오래 걸림
-# # (조합이 많아서 시간이 오래 걸리는 거면 데이터 사이즈 60분봉으로 줄여도 별 차이 없을 것 같음)
-# @ray.remote(num_cpus=4)
-# def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
-#     if not os.path.isfile(path):
-#         my_json.dump({}, path)
-#     data = my_json.load(path)
-
-#     for idx in batch_i:
-#         binaryNum = format(idx, "b")
-#         code = [int(digit) for digit in binaryNum]
-#         mask = [0] * (num_estimators - len(code)) + code
-
-#         t_data = obj_ref * mask
-#         # t_data[1:] = t_data[1:].replace(0, np.nan)
-#         # t_data = np.array(t_data.fillna(method="ffill"))
-
-#         decision = t_data.sum(axis=1)
-#         decision = np.where(decision > 0, 1, 0)
-#         rtn_buy = (decision * y_rtn_close_ref).sum()
-
-#         decision = t_data.sum(axis=1)
-#         decision = np.where(decision < 0, -1, 0)
-#         rtn_sell = (decision * y_rtn_close_ref).sum()
-
-#         rtn = rtn_buy + rtn_sell
-
-#         # print(f"idx: {idx}")
-#         if rtn > 0.33:
-#             # 메모리 overflow -> 결과 산출 할 때마다 파일로 저장 해 두기
-#             print(f"idx: {idx}, rtn: {rtn} mask: {mask}")
-#             data[idx] = {"rtn": rtn, "mask": mask}
-
-#     my_json.dump(data, path)
-
-#     return f"save result to {path}"
-
-
+# (조합이 많아서 시간이 오래 걸리는 거면 데이터 사이즈 60분봉으로 줄여도 별 차이 없을 것 같음)
 @ray.remote(num_cpus=4)
 def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
-    def int_code(str_code):
-        return [int(digit) for digit in str_code]
-
     data = {}
-    # if not os.path.isfile(path):
-    #     data = {}
-    #     my_json.dump(data, path)
-    # else:
-    #     data = my_json.load(path)
 
     if os.path.isfile(path):
         data = my_json.load(path)
 
-    binaryNum = [format(idx, "b") for idx in batch_i]
-    mask = [[0] * (num_estimators - len(code)) + int_code(code) for code in binaryNum]
+    for idx in batch_i:
+        binaryNum = format(idx, "b")
+        code = [int(digit) for digit in binaryNum]
+        mask = [0] * (num_estimators - len(code)) + code
 
-    # load to tensor or cuda tensor
-    t_data = obj_ref * np.expand_dims(mask, axis=1)
+        t_data = obj_ref * mask
+        # t_data[1:] = t_data[1:].replace(0, np.nan)
+        # t_data = np.array(t_data.fillna(method="ffill"))
 
-    decision = t_data.sum(axis=2)
-    decision = np.where(decision > 0, 1, 0)
-    rtn_buy = (decision * y_rtn_close_ref).sum(-1)
+        decision = t_data.sum(axis=1)
+        decision = np.where(decision > 0, 1, 0)
+        rtn_buy = (decision * y_rtn_close_ref).sum()
 
-    decision = t_data.sum(axis=2)
-    decision = np.where(decision < 0, -1, 0)
-    rtn_sell = (decision * y_rtn_close_ref).sum(-1)
+        decision = t_data.sum(axis=1)
+        decision = np.where(decision < 0, -1, 0)
+        rtn_sell = (decision * y_rtn_close_ref).sum()
 
-    rtn = rtn_buy + rtn_sell
+        rtn = rtn_buy + rtn_sell
 
-    conditions = rtn > 0.29
-
-    if conditions.any():
-        idxs = np.array(batch_i)[conditions]
-        rtns = np.array(rtn)[conditions]
-        masks = np.array(mask)[conditions]
-
-        retirive_masks = {
-            str(i): {"rtn": r, "mask": m.tolist()}
-            for i, r, m in list(zip(idxs, rtns, masks))
-        }
-
-        # print(retirive_masks)
-        data.update(retirive_masks)
-    else:
-        # print_c("조건을 만족하는 아이템 없음")
-        pass
+        # print(f"idx: {idx}")
+        if rtn > 0.29:
+            # 메모리 overflow -> 결과 산출 할 때마다 파일로 저장 해 두기
+            # print(f"idx: {idx}, rtn: {rtn} mask: {mask}")
+            data[idx] = {"rtn": rtn, "mask": mask}
 
     my_json.dump(data, path)
+
     return f"save result to {path}"
 
 
 print_c("simulation_exhaussted - mp")
-obj_ref = ray.put(np.expand_dims(np.array(action_table.iloc[:, :-1]), axis=0))
-y_rtn_close_ref = ray.put(np.expand_dims(action_table["y_rtn_close"], axis=0))
+# obj_ref = ray.put(np.expand_dims(np.array(action_table.iloc[:, :-1]), axis=0))
+# y_rtn_close_ref = ray.put(np.expand_dims(action_table["y_rtn_close"], axis=0))
 
-# obj_ref = np.expand_dims(np.array(action_table.iloc[:, :-1]), axis=0)
-# y_rtn_close_ref = np.expand_dims(action_table["y_rtn_close"], axis=0)
+obj_ref = ray.put(np.array(action_table.iloc[:, :-1]))
+y_rtn_close_ref = ray.put(action_table["y_rtn_close"])
 
 path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
 start_idx, end_idx = 40030, 2**num_estimators
-end_idx = start_idx + 5000
-batch = 250
-
+end_idx = start_idx + 108000
+batch = 2000
 s_time = time()
 res = ray.get(
     [
@@ -270,18 +211,6 @@ res = ray.get(
 e_time = time()
 print_c(f"simulation_exhaussted - mp - {e_time -s_time}s")
 assert False, "simulation_exhaussted"
-# res = [
-#     simulation_exhaussted(
-#         idx_estimator,
-#         num_estimators,
-#         obj_ref,
-#         y_rtn_close_ref,
-#         f"{path}_{idx_estimator[0]}.json",
-#     )
-#     # for idx_estimator in range(start_idx, 2**num_estimators)
-#     for idx_estimator in batch_idx(start_idx, end_idx, batch)
-# ]
-
 
 print_c("collect score")
 # load result history
