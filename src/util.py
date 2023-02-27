@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 import sklearn.metrics as metrics
 from PIL import Image
+from tqdm import tqdm
 
 
 def get_min_range(interval: int) -> Dict[int, int]:
@@ -162,7 +163,7 @@ def funTime(func_name):
 
 
 def batch_idx(s_idx, e_idx, batch_size):
-    for i in range(s_idx, e_idx, batch_size):
+    for i in tqdm(range(s_idx, e_idx, batch_size)):
         if i + batch_size > e_idx:
             to = e_idx
         else:
@@ -171,20 +172,20 @@ def batch_idx(s_idx, e_idx, batch_size):
 
 
 class my_json:
-    def load(filename):
+    def load(filename, verbose=False):
         json_file = open(filename, "r")
         json_data = json.load(json_file)
         json_file.close()
-
-        print_c(f"load {filename}")
+        if verbose:
+            print_c(f"load {filename}")
         return json_data
 
-    def dump(ojb, filename):
+    def dump(ojb, filename, verbose=False):
         json_file = open(filename, "w")
         json.dump(ojb, json_file)
         json_file.close()
-
-        print_c(f"{filename} saved")
+        if verbose:
+            print_c(f"{filename} saved")
 
 
 def dict2json(file_name, _dict):

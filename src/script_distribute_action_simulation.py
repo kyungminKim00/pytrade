@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import ray
+import torch
 from joblib import dump, load
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -20,6 +21,11 @@ from util import batch_idx, my_json, print_c, print_flush
 
 """Parameter Configuration
 """
+if torch.cuda.is_available():
+    _device = "cuda:0"
+else:
+    _device = "cpu"
+
 candle_size = (1, 3, 5, 15, 60)
 w_size = (9, 50, 100)
 alpha = 3.5
@@ -79,40 +85,41 @@ processed_data = load("./src/local_data/assets/sequential_data.pkl")
 x_real = [c for c in processed_data.train_data.columns if "feature" in c]
 y_real = ["y_rtn_close"]
 
-# supremum, infimum 탐색
-for col, sup_inf_dct in sup_inf.items():
-    data = processed_data.train_data[col]
-    max_val = data.max()
-    min_val = data.min()
-    mean_val = data.mean()
+# # todo: optimize
+# # supremum, infimum 탐색
+# for col, sup_inf_dct in sup_inf.items():
+#     data = processed_data.train_data[col]
+#     max_val = data.max()
+#     min_val = data.min()
+#     mean_val = data.mean()
 
-    sub_range = np.arange(mean_val, max_val, (max_val - mean_val) / 100).tolist()
-    inf_range = np.arange(min_val, mean_val, (mean_val - min_val) / 100).tolist()
+#     sub_range = np.arange(mean_val, max_val, (max_val - mean_val) / 100).tolist()
+#     inf_range = np.arange(min_val, mean_val, (mean_val - min_val) / 100).tolist()
 
-    if sup_inf_dct["sup"] != np.inf:  # supremum 탐색
-        res = np.array(
-            [
-                (some_val, np.where(data < some_val, 1, 0).sum())
-                for some_val in sub_range
-            ]
-        )
-        move_std = bn.move_std(res[:, 1], window=50, axis=0)
-        std_diff = np.diff(move_std)
-        some_value = None
+#     if sup_inf_dct["sup"] != np.inf:  # supremum 탐색
+#         res = np.array(
+#             [
+#                 (some_val, np.where(data < some_val, 1, 0).sum())
+#                 for some_val in sub_range
+#             ]
+#         )
+#         move_std = bn.move_std(res[:, 1], window=50, axis=0)
+#         std_diff = np.diff(move_std)
+#         some_value = None
 
-        sup_inf[col]["sup"] = some_value
-    elif sup_inf_dct["inf"] != -np.inf:  # infimum 탐색
-        res = np.array(
-            [
-                (some_val, np.where(data > some_val, 1, 0).sum())
-                for some_val in inf_range
-            ]
-        )
-        move_std = bn.move_std(res[:, 1], window=50, axis=0)
-        std_diff = np.diff(move_std)
-        some_value = None
+#         sup_inf[col]["sup"] = some_value
+#     elif sup_inf_dct["inf"] != -np.inf:  # infimum 탐색
+#         res = np.array(
+#             [
+#                 (some_val, np.where(data > some_val, 1, 0).sum())
+#                 for some_val in inf_range
+#             ]
+#         )
+#         move_std = bn.move_std(res[:, 1], window=50, axis=0)
+#         std_diff = np.diff(move_std)
+#         some_value = None
 
-        sup_inf[col]["inf"] = some_value
+#         sup_inf[col]["inf"] = some_value
 
 
 # # naive estimator - method 1
@@ -143,64 +150,134 @@ action_table.to_csv("./src/local_data/assets/action_table.csv")
 
 
 # simulate vote - with ray 시간 오래 걸림
-# (조합이 많아서 시간이 오래 걸리는 거면 데이터 사이즈 60분봉으로 줄여도 별 차이 없을 것 같음)
-@ray.remote(num_cpus=4)
+# # (조합이 많아서 시간이 오래 걸리는 거면 데이터 사이즈 60분봉으로 줄여도 별 차이 없을 것 같음)
+# @ray.remote(num_cpus=4)
+# def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
+#     if not os.path.isfile(path):
+#         my_json.dump({}, path)
+#     data = my_json.load(path)
+
+#     for idx in batch_i:
+#         binaryNum = format(idx, "b")
+#         code = [int(digit) for digit in binaryNum]
+#         mask = [0] * (num_estimators - len(code)) + code
+
+#         t_data = obj_ref * mask
+#         # t_data[1:] = t_data[1:].replace(0, np.nan)
+#         # t_data = np.array(t_data.fillna(method="ffill"))
+
+#         decision = t_data.sum(axis=1)
+#         decision = np.where(decision > 0, 1, 0)
+#         rtn_buy = (decision * y_rtn_close_ref).sum()
+
+#         decision = t_data.sum(axis=1)
+#         decision = np.where(decision < 0, -1, 0)
+#         rtn_sell = (decision * y_rtn_close_ref).sum()
+
+#         rtn = rtn_buy + rtn_sell
+
+#         # print(f"idx: {idx}")
+#         if rtn > 0.33:
+#             # 메모리 overflow -> 결과 산출 할 때마다 파일로 저장 해 두기
+#             print(f"idx: {idx}, rtn: {rtn} mask: {mask}")
+#             data[idx] = {"rtn": rtn, "mask": mask}
+
+#     my_json.dump(data, path)
+
+#     return f"save result to {path}"
+
+
+# @ray.remote(num_cpus=4)
 def simulation_exhaussted(batch_i, num_estimators, obj_ref, y_rtn_close_ref, path):
-    if not os.path.isfile(path):
-        my_json.dump({}, path)
-    data = my_json.load(path)
+    def int_code(str_code):
+        return [int(digit) for digit in str_code]
 
-    for idx in batch_i:
-        binaryNum = format(idx, "b")
-        code = [int(digit) for digit in binaryNum]
-        mask = [0] * (num_estimators - len(code)) + code
+    data = {}
+    if os.path.isfile(path):
+        data = my_json.load(path)
 
-        t_data = obj_ref * mask
-        # t_data[1:] = t_data[1:].replace(0, np.nan)
-        # t_data = np.array(t_data.fillna(method="ffill"))
+    binaryNum = [format(idx, "b") for idx in batch_i]
+    mask = [[0] * (num_estimators - len(code)) + int_code(code) for code in binaryNum]
 
-        decision = t_data.sum(axis=1)
-        decision = np.where(decision > 0, 1, 0)
-        rtn_buy = (decision * y_rtn_close_ref).sum()
+    # load to tensor or cuda tensor
+    y_rtn = torch.from_numpy(y_rtn_close_ref).to(device=_device)
+    t_data = (
+        torch.from_numpy(obj_ref) * torch.tensor(np.expand_dims(mask, axis=1))
+    ).to(device=_device)
 
-        decision = t_data.sum(axis=1)
-        decision = np.where(decision < 0, -1, 0)
-        rtn_sell = (decision * y_rtn_close_ref).sum()
+    decision = t_data.sum(axis=2)
+    decision = torch.where(decision > 0, 1, 0)
+    rtn_buy = (decision * y_rtn).sum(-1)
 
-        rtn = rtn_buy + rtn_sell
+    decision = t_data.sum(axis=2)
+    decision = torch.where(decision < 0, -1, 0)
+    rtn_sell = (decision * y_rtn).sum(-1)
 
-        # print(f"idx: {idx}")
-        if rtn > 0.33:
-            # 메모리 overflow -> 결과 산출 할 때마다 파일로 저장 해 두기
-            print(f"idx: {idx}, rtn: {rtn} mask: {mask}")
-            data[idx] = {"rtn": rtn, "mask": mask}
+    rtn = (rtn_buy + rtn_sell).detach().cpu().numpy()
+
+    conditions = rtn > 0.29
+
+    if conditions.any():
+        idxs = np.array(batch_i)[conditions]
+        rtns = np.array(rtn)[conditions]
+        masks = np.array(mask)[conditions]
+
+        retirive_masks = {
+            str(i): {"rtn": r, "mask": m.tolist()}
+            for i, r, m in list(zip(idxs, rtns, masks))
+        }
+
+        # print(retirive_masks)
+        data.update(retirive_masks)
+    else:
+        # print_c("조건을 만족하는 아이템 없음")
+        pass
 
     my_json.dump(data, path)
-
     return f"save result to {path}"
 
 
 print_c("simulation_exhaussted - mp")
-obj_ref = ray.put(np.array(action_table.iloc[:, :-1]))
-y_rtn_close_ref = ray.put(action_table["y_rtn_close"])
+# obj_ref = ray.put(np.expand_dims(np.array(action_table.iloc[:, :-1]), axis=0))
+# y_rtn_close_ref = ray.put(np.expand_dims(action_table["y_rtn_close"], axis=0))
+
+obj_ref = np.expand_dims(np.array(action_table.iloc[:, :-1]), axis=0)
+y_rtn_close_ref = np.expand_dims(action_table["y_rtn_close"], axis=0)
 
 path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
 start_idx, end_idx = 40030, 2**num_estimators
-batch = 5000
-res = ray.get(
-    [
-        simulation_exhaussted.remote(
-            idx_estimator,
-            num_estimators,
-            obj_ref,
-            y_rtn_close_ref,
-            f"{path}_{idx_estimator[0]}.json",
-        )
-        # for idx_estimator in range(start_idx, 2**num_estimators)
-        for idx_estimator in batch_idx(start_idx, end_idx, batch)
-    ]
-)
+end_idx = start_idx + 6000
+batch = 80
+# res = ray.get(
+#     [
+#         simulation_exhaussted.remote(
+#             idx_estimator,
+#             num_estimators,
+#             obj_ref,
+#             y_rtn_close_ref,
+#             f"{path}_{idx_estimator[0]}.json",
+#         )
+#         # for idx_estimator in range(start_idx, 2**num_estimators)
+#         for idx_estimator in batch_idx(start_idx, end_idx, batch)
+#     ]
+# )
+s_time = time()
+res = [
+    simulation_exhaussted(
+        idx_estimator,
+        num_estimators,
+        obj_ref,
+        y_rtn_close_ref,
+        f"{path}_{idx_estimator[0]}.json",
+    )
+    # for idx_estimator in range(start_idx, 2**num_estimators)
+    for idx_estimator in batch_idx(start_idx, end_idx, batch)
+]
+e_time = time()
+print_c(f"simulation_exhaussted - mp - {e_time -s_time}s")
+assert False, "simulation_exhaussted"
+
 
 print_c("collect score")
 # load result history
