@@ -246,7 +246,7 @@ y_rtn_close_ref = np.expand_dims(action_table["y_rtn_close"], axis=0)
 
 path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
-start_idx, end_idx = 40030, 2**num_estimators
+start_idx, end_idx = 1, 2**num_estimators
 end_idx = start_idx + 108000
 batch = 80
 # res = ray.get(
