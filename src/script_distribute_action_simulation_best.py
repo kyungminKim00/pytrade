@@ -190,7 +190,6 @@ y_rtn_close_ref = ray.put(action_table["y_rtn_close"])
 path = "./src/local_data/assets/mask_result"
 num_estimators = action_table.shape[1] - 1
 start_idx, end_idx = 1, 2**num_estimators
-end_idx = start_idx + 108000
 batch = 5000
 s_time = time()
 res = ray.get(
