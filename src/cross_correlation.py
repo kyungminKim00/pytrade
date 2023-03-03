@@ -18,7 +18,7 @@ def calc_corr(x_col, X, Y, correation_bin):
             np.sum((x_w - np.mean(x_w)) ** 2) * np.sum((y_w - np.mean(y_w)) ** 2)
         )
         corr[k] = numerator / denominator
-    return corr
+    return corr[correation_bin:]
 
 
 class CrossCorrelation:
@@ -59,15 +59,36 @@ class CrossCorrelation:
         self.X_ma = bn.move_mean(self.X, axis=0, window=mv_bin, min_count=1)
         self.Y_ma = bn.move_mean(self.Y, axis=0, window=mv_bin, min_count=1)
 
-        self.num_sample = common_df.shape[0]
         self.num_vars = self.X.shape[1]
         self.mv_bin = mv_bin
         self.correation_bin = correation_bin
 
-        # model inputs
-        self.observatoins = self.ncc_windowed()
+        """다음 코드는 인덱스 정렬이 포함 되어 있음. 코드 위치 변경시 자세히 살펴 봐야 함
+        """
+        # Obervations
+        self.observatoins, self.Y = self.ncc_windowed()
+
+        # mendatory mask
+        self.forward_returns, self.observatoins = self.get_forward_returns(
+            self.Y, n_periods=60
+        )
+        self.predefined_mask = self.std_idx(alpha=2)
+        self.num_sample = self.observatoins.shape[0]
+
+        assert (
+            self.observatoins.shape[0] == self.forward_returns.shape[0]
+        ), "observatoins, forward_returns and predefined_mask must have the same length"
+
+        # 인덱스 합치기 (observatoins, mask)
+        self.observatoins_merge_idx = np.zeros(self.observatoins.shape[0])
+        self.observatoins_merge_idx[self.predefined_mask] = 1
+        self.observatoins_merge_idx = self.observatoins_merge_idx[:, None]
+        self.observatoins_merge_idx = np.concatenate(
+            (self.observatoins, self.observatoins_merge_idx), axis=1
+        )
 
         # validation data & data visualization
+        debug = True
         if debug:
             for col in common_df.columns:
                 fig = px.line(common_df, x=common_df.index, y=col)
@@ -76,6 +97,11 @@ class CrossCorrelation:
                 )
             self.plot_histogram()
             self.plot_pca()
+
+    def std_idx(self, alpha=2):
+        _std = self.forward_returns.std() * alpha
+        _t_idx = np.argwhere(np.abs(self.forward_returns) > _std)
+        return _t_idx.reshape(-1)
 
     def fill_data(self, fn):
         df = pd.read_csv(fn)
@@ -95,7 +121,9 @@ class CrossCorrelation:
         # zeros = np.all(results == 0, axis=1)
         # results = results[~zeros]
 
-        return results / (np.nanstd(self.X, axis=0) * np.nanstd(self.Y))
+        self.Y = self.Y[self.correation_bin :]
+
+        return (results / (np.nanstd(self.X, axis=0) * np.nanstd(self.Y))), self.Y
 
     def plot_histogram(self):
         for idx in range(self.observatoins.shape[1]):
@@ -105,37 +133,36 @@ class CrossCorrelation:
                 f"./src/local_data/assets/plot_check/histogram_{self.x_idx2col[idx]}.png"
             )
 
+    def get_forward_returns(self, Y, n_periods=60):
+        _forward_returns = np.zeros_like(Y)
+        for i in range(len(Y) - n_periods):
+            _forward_returns[i] = (Y[i + n_periods] - Y[i]) / Y[i]
+
+        # align index
+        _forward_returns = _forward_returns[:-n_periods]
+        self.observatoins = self.observatoins[:-n_periods, :]
+
+        return _forward_returns, self.observatoins
+
     def plot_pca(self):
         # perform PCA on the observations
         pca = PCA(n_components=2)
         obs_pca = pca.fit_transform(self.observatoins)
 
-        n_periods = 60  # 60 forwards
-        Y = self.Y
-        forward_returns = np.zeros_like(Y)
-        for i in range(len(Y) - n_periods):
-            forward_returns[i] = (Y[i + n_periods] - Y[i]) / Y[i]
-
-        # method discret labels and countinuous labels
-        # forward_returns = np.where(forward_returns > 0, 1, -1)
-
         # align data
-        forward_returns = forward_returns[:-n_periods]
-        data = obs_pca[:-n_periods, :]
-        p1_data = obs_pca[:-n_periods, 0]
-        p2_data = obs_pca[:-n_periods, 1]
+        data = obs_pca
+        p1_data = obs_pca[:, 0]
+        p2_data = obs_pca[:, 1]
 
         # ad-hoc for analysis
         for alpha in [1, 1.5, 2, 2.5, 3, 3.5, 4]:
-            _std = forward_returns.std() * alpha
-            target_idx = np.argwhere(np.abs(forward_returns) > _std)
-            target_idx = target_idx.reshape(-1)
+            target_idx = self.std_idx(alpha)
 
             fig = px.scatter(
                 data,
                 x=p1_data[target_idx],
                 y=p2_data[target_idx],
-                color=forward_returns[target_idx],
+                color=self.forward_returns[target_idx],
                 title=f"label std: {alpha}",
             )
             fig.write_image(f"./src/local_data/assets/plot_check/pca_2D_{alpha}.png")

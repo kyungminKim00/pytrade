@@ -6,6 +6,7 @@ import ray
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from joblib import dump, load
 from torch.utils.data import DataLoader, Dataset
 
 from cross_correlation import CrossCorrelation
@@ -14,11 +15,9 @@ ray.init()
 
 
 class MaskedLanguageModelDataset(Dataset):
-    def __init__(
-        self, observations: np.array, predefined_mask: np.array, max_seq_length: int
-    ):
-        self.observations = observations
-        self.predefined_mask = predefined_mask
+    def __init__(self, observations: np.array, max_seq_length: int):
+        self.observations = observations[:, :-1]
+        self.predefined_mask = observations[:, -1].astype(int)
         self.max_seq_length = max_seq_length
 
     def __len__(self):
@@ -41,7 +40,7 @@ class MaskedLanguageModelDataset(Dataset):
             obs = np.concatenate((obs, padding))
 
         # Randomly mask a portion of the input sequence
-        num_predefined_mask = seq_length - predefined_mask.sum()
+        num_predefined_mask = predefined_mask.sum()
 
         mask = predefined_mask.tolist() + [0] * padding_length
         num_masked_tokens = min(
@@ -160,6 +159,8 @@ def train(model, train_dataloader, val_dataloader, num_epochs, lr, weight_decay)
             torch.save(model.state_dict(), "best_model.pt")
 
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 cc = CrossCorrelation(
     mv_bin=20,  # bin size for moving variance
     correation_bin=60,  # bin size to calculate cross correlation
@@ -167,35 +168,37 @@ cc = CrossCorrelation(
     y_file_name="./src/local_data/raw/y_toys.csv",
     debug=False,
 )
+dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
+cc = load("./src/local_data/assets/crosscorrelation.pkl")
+data = cc.observatoins_merge_idx
+
+# train configuration
+_max_seq_length = 120
+_batch_size = 128
+_hidden_size = 256
+_num_features = data.shape[1] - 1
+_num_epochs = 10
+_lr = 0.001
+_tv_ratio = 0.8
 
 # Split data into train and validation sets
-train_size = int(len(cc.observatoins) * 0.8)
-train_observations = cc.observatoins[:train_size]
-train_predefined_mask = cc.predefined_mask[:train_size]
-val_observations = cc.observatoins[train_size:]
-val_predefined_mask = cc.predefined_mask[train_size:]
+train_size = int(len(data) * _tv_ratio)
+train_observations = data[:train_size]
+val_observations = data[train_size:]
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-_hidden_size = 256
-_max_seq_length = 120
-_num_features = cc.observatoins.shape[1]
-_lr = 0.001
-_batch_size = 128
-_num_epochs = 10
-_weight_decay = 0.0001
-
-# Create data loaders
-_train_dataset = MaskedLanguageModelDataset(
-    train_observations, train_predefined_mask, _max_seq_length
+train(
+    model=MaskedLanguageModel(_hidden_size, _max_seq_length, _num_features).to(device),
+    train_dataloader=DataLoader(
+        MaskedLanguageModelDataset(train_observations, _max_seq_length),
+        batch_size=_batch_size,
+        shuffle=True,
+    ),
+    val_dataloader=DataLoader(
+        MaskedLanguageModelDataset(val_observations, _max_seq_length),
+        batch_size=_batch_size,
+        shuffle=False,
+    ),
+    num_epochs=_num_epochs,
+    lr=_lr,
+    weight_decay=0.0001,
 )
-_train_dataloader = DataLoader(_train_dataset, batch_size=_batch_size, shuffle=True)
-_val_dataset = MaskedLanguageModelDataset(
-    val_observations, val_predefined_mask, _max_seq_length
-)
-_val_dataloader = DataLoader(_val_dataset, batch_size=_batch_size, shuffle=False)
-
-
-_model = MaskedLanguageModel(_hidden_size, _max_seq_length, _num_features)
-_model.to(device)
-train(_model, _train_dataloader, _val_dataloader, _num_epochs, _lr, _weight_decay)
