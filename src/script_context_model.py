@@ -47,6 +47,9 @@ class MaskedLanguageModelDataset(Dataset):
             seq_length, max(int(0.15 * seq_length) - num_predefined_mask, 1)
         )
         masked_indices = torch.randperm(seq_length)[:num_masked_tokens]
+
+        # 여기 오류 인듯
+        assert False, "여기 오류 인듯"
         mask = [
             0 if i in masked_indices else mask[i] for i in range(self.max_seq_length)
         ]
