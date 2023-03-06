@@ -60,7 +60,11 @@ class MaskedLanguageModelDataset(Dataset):
         # Convert to tensors
         obs = torch.tensor(obs, dtype=torch.float32)
         mask = torch.tensor(mask, dtype=torch.bool)
-        masked_obs = torch.tensor(masked_obs, dtype=torch.float32)
+        # list to tensor 속도 저하
+        # masked_obs = torch.tensor(masked_obs, dtype=torch.float32)
+        masked_obs = torch.tensor(
+            np.concatenate(masked_obs, axis=0).reshape(obs.shape), dtype=torch.float32
+        )
 
         return masked_obs, mask, obs
 

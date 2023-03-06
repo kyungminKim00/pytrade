@@ -1,3 +1,6 @@
+import os
+
+import imageio
 import numpy as np
 import plotly.express as px
 import ray
@@ -6,7 +9,6 @@ import torch.nn as nn
 import torch.optim as optim
 from joblib import dump, load
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from cross_correlation import CrossCorrelation
 from masked_language_model import MaskedLanguageModel, MaskedLanguageModelDataset
@@ -39,6 +41,31 @@ def plot_res(plot_data, mode, epoch):
     fig.write_image(f"./src/local_data/assets/plot_check/cc_2D_{mode}_{epoch}.png")
 
 
+def plot_animate():
+    base_dir = "./src/local_data/assets/plot_check"
+    train_files, val_files = [], []
+    # Create a list of PNG files
+    for fn in os.listdir(base_dir):
+        if "cc_2D_train" in fn:
+            train_files.append(f"{base_dir}/{fn}")
+        if "cc_2D_val" in fn:
+            val_files.append(f"{base_dir}/{fn}")
+
+    files = train_files
+    for idx, files in enumerate([train_files, val_files]):
+        mode = "train" if idx == 0 else "val"
+        if len(files) > 0:
+            images = [imageio.imread(fn) for fn in files]
+            imageio.mimsave(
+                f"{base_dir}/animated_image_{mode}.gif", images, duration=1, loop=1
+            )
+
+
+def earth_mover(y_pred, y_true):
+    # return torch.mean(y_true * y_pred)
+    return torch.mean(y_pred) - torch.mean(y_true)
+
+
 def train(
     model,
     train_dataloader,
@@ -48,9 +75,14 @@ def train(
     weight_decay,
     plot_train=False,
     plot_val=False,
+    loss="mse",
 ):
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    criterion = nn.MSELoss()
+    if loss == "mse":
+        criterion = nn.MSELoss()
+    if loss == "earth_mover":
+        criterion = earth_mover
+
     best_val_loss = float("inf")
 
     for epoch in range(num_epochs):
@@ -132,17 +164,18 @@ data = cc.observatoins_merge_idx
 
 # train configuration
 max_seq_length = 120
-batch_size = 16
+batch_size = 4
 hidden_size = 256
 num_features = data.shape[1] - 1
 epochs = 1500
-step_size = 0.0005
+step_size = 5e-5
 
 # Split data into train and validation sets
 train_size = int(len(data) * tv_ratio)
 train_observations = data[:train_size]
 val_observations = data[train_size:]
 
+# model training
 train(
     model=MaskedLanguageModel(hidden_size, max_seq_length, num_features).to(device),
     train_dataloader=DataLoader(
@@ -159,7 +192,11 @@ train(
     ),
     num_epochs=epochs,
     lr=step_size,
-    weight_decay=0.0001,
+    weight_decay=1e-4,
     plot_train=True,
     plot_val=True,
+    loss="earth_mover",
 )
+
+# plot result
+plot_animate()
