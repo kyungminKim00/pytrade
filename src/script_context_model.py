@@ -68,8 +68,8 @@ cc = CrossCorrelation(
     x_file_name="./src/local_data/raw/x_toys.csv",
     y_file_name="./src/local_data/raw/y_toys.csv",
     debug=False,
-    enable_PCA=True,
-    ratio=tv_ratio,  # enable_PCA=True 일 때 PCA 모형 구축 용, 차원 축소된 observation 은 전체 샘플 다 포함 함
+    n_components_pca=2,
+    ratio=tv_ratio,  # n_components_pca is not None 일 때 PCA 학습 샘풀, 차원 축소된 observation 은 전체 샘플 다 포함 함
 )
 dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
 cc = load("./src/local_data/assets/crosscorrelation.pkl")

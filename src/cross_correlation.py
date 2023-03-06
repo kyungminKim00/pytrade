@@ -31,7 +31,7 @@ class CrossCorrelation:
         x_file_name,
         y_file_name,
         debug,
-        enable_PCA=True,
+        n_components_pca=None,
         ratio=0.8,
     ):
         # missing values
@@ -79,8 +79,10 @@ class CrossCorrelation:
         self.predefined_mask = self.std_idx(alpha=2)
         self.num_sample = self.observatoins.shape[0]
 
-        if enable_PCA:
-            self.observatoins = self.reduction_dim(n_components=2, ratio=ratio)
+        if n_components_pca is not None:
+            self.observatoins = self.reduction_dim(
+                n_components=n_components_pca, ratio=ratio
+            )
 
         assert (
             self.observatoins.shape[0] == self.forward_returns.shape[0]
@@ -95,7 +97,11 @@ class CrossCorrelation:
         )
 
         # validation data & data visualization
-        if debug and not enable_PCA:
+        if debug:
+            assert (
+                n_components_pca is None
+            ), "데이터 탐색용 함수, n_components_pca is None으로 두고 데이터 탐색"
+
             for col in common_df.columns:
                 fig = px.line(common_df, x=common_df.index, y=col)
                 fig.write_image(
@@ -111,15 +117,16 @@ class CrossCorrelation:
             self.observatoins[: int(self.observatoins.shape[0] * ratio)]
         )
 
-        explained_variance = pca_model.explained_variance_
         explained_variance_ratio = pca_model.explained_variance_ratio_
         singular_values = pca_model.singular_values_
         print_c(
             f"[n_components={n_components}] \
-                explained_variance:{explained_variance} \
                     explained_variance_ratio: {explained_variance_ratio} \
                         singular_values:{singular_values}"
         )
+        assert (
+            explained_variance_ratio.sum() > 0.95
+        ), "[at cross_cprreation.py]increase n_components"
 
         return pca_model.transform(self.observatoins)
 
