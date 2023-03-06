@@ -33,6 +33,7 @@ class CrossCorrelation:
         debug,
         n_components_pca=None,
         ratio=0.8,
+        alpha=2,
     ):
         # missing values
         self.X = self.fill_data(x_file_name)
@@ -76,7 +77,7 @@ class CrossCorrelation:
         self.forward_returns, self.observatoins = self.get_forward_returns(
             self.Y, n_periods=60
         )
-        self.predefined_mask = self.std_idx(alpha=2)
+        self.predefined_mask = self.std_idx(alpha=alpha)
         self.num_sample = self.observatoins.shape[0]
 
         if n_components_pca is not None:
@@ -94,6 +95,13 @@ class CrossCorrelation:
         self.observatoins_merge_idx = self.observatoins_merge_idx[:, None]
         self.observatoins_merge_idx = np.concatenate(
             (self.observatoins, self.observatoins_merge_idx), axis=1
+        )
+
+        # summary statistics
+        print_c(
+            f"observatoins_merge_idx shape: {self.observatoins_merge_idx.shape} \
+            nums of masked samples: {self.observatoins_merge_idx[:, -1].sum()} \
+            ratio of masked samples: {self.observatoins_merge_idx[:, -1].sum() / self.observatoins_merge_idx.shape[0]}"
         )
 
         # validation data & data visualization
@@ -120,8 +128,8 @@ class CrossCorrelation:
         explained_variance_ratio = pca_model.explained_variance_ratio_
         singular_values = pca_model.singular_values_
         print_c(
-            f"[n_components={n_components}] \
-                    explained_variance_ratio: {explained_variance_ratio} \
+            f"[n_components={n_components}] \n\
+                    explained_variance_ratio: {explained_variance_ratio} \n\
                         singular_values:{singular_values}"
         )
         assert (

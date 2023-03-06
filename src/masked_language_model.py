@@ -7,10 +7,13 @@ from torch.utils.data import Dataset
 
 
 class MaskedLanguageModelDataset(Dataset):
-    def __init__(self, observations: np.array, max_seq_length: int):
+    def __init__(
+        self, observations: np.array, max_seq_length: int, gen_random_mask: bool = True
+    ):
         self.observations = observations[:, :-1]
         self.predefined_mask = observations[:, -1].astype(int)
         self.max_seq_length = max_seq_length
+        self.gen_random_mask = gen_random_mask
 
     def __len__(self):
         return len(self.observations) - self.max_seq_length
@@ -35,15 +38,20 @@ class MaskedLanguageModelDataset(Dataset):
         num_predefined_mask = predefined_mask.sum()
 
         mask = predefined_mask.tolist() + [0] * padding_length
-        num_masked_tokens = min(
-            seq_length, max(int(0.15 * seq_length) - num_predefined_mask, 1)
-        )
-        masked_indices = torch.randperm(seq_length)[:num_masked_tokens]
 
-        # Mask the index to be hide
-        mask = [
-            1 if i in masked_indices else mask[i] for i in range(self.max_seq_length)
-        ]
+        # add random mask to predefined_mask
+        if self.gen_random_mask:
+            num_masked_tokens = min(
+                seq_length, max(int(0.15 * seq_length) - num_predefined_mask, 1)
+            )
+            masked_indices = torch.randperm(seq_length)[:num_masked_tokens]
+
+            # Mask the index to be hide
+            mask = [
+                1 if i in masked_indices else mask[i]
+                for i in range(self.max_seq_length)
+            ]
+
         masked_obs = [
             np.zeros(num_features) if mask[i] else obs[i]
             for i in range(self.max_seq_length)
@@ -88,6 +96,7 @@ class MaskedLanguageModel(nn.Module):
                 nhead=8,
                 dim_feedforward=hidden_size * 4,
                 dropout=0.1,
+                activation="gelu",
             ),
             num_layers=6,
         )
