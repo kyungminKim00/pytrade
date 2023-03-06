@@ -49,7 +49,6 @@ class MaskedLanguageModelDataset(Dataset):
         masked_indices = torch.randperm(seq_length)[:num_masked_tokens]
 
         # 여기 오류 인듯
-        assert False, "여기 오류 인듯"
         mask = [
             0 if i in masked_indices else mask[i] for i in range(self.max_seq_length)
         ]
@@ -164,14 +163,15 @@ def train(model, train_dataloader, val_dataloader, num_epochs, lr, weight_decay)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-cc = CrossCorrelation(
-    mv_bin=20,  # bin size for moving variance
-    correation_bin=60,  # bin size to calculate cross correlation
-    x_file_name="./src/local_data/raw/x_toys.csv",
-    y_file_name="./src/local_data/raw/y_toys.csv",
-    debug=False,
-)
-dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
+# # 특징 추출
+# cc = CrossCorrelation(
+#     mv_bin=20,  # bin size for moving variance
+#     correation_bin=60,  # bin size to calculate cross correlation
+#     x_file_name="./src/local_data/raw/x_toys.csv",
+#     y_file_name="./src/local_data/raw/y_toys.csv",
+#     debug=False,
+# )
+# dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
 cc = load("./src/local_data/assets/crosscorrelation.pkl")
 data = cc.observatoins_merge_idx
 
