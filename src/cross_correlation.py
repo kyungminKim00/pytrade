@@ -5,6 +5,8 @@ import plotly.express as px
 import ray
 from sklearn.decomposition import PCA
 
+from util import print_c
+
 
 @ray.remote(num_cpus=4)
 def calc_corr(x_col, X, Y, correation_bin):
@@ -29,6 +31,8 @@ class CrossCorrelation:
         x_file_name,
         y_file_name,
         debug,
+        enable_PCA=True,
+        ratio=0.8,
     ):
         # missing values
         self.X = self.fill_data(x_file_name)
@@ -75,6 +79,9 @@ class CrossCorrelation:
         self.predefined_mask = self.std_idx(alpha=2)
         self.num_sample = self.observatoins.shape[0]
 
+        if enable_PCA:
+            self.observatoins = self.reduction_dim(n_components=2, ratio=ratio)
+
         assert (
             self.observatoins.shape[0] == self.forward_returns.shape[0]
         ), "observatoins, forward_returns and predefined_mask must have the same length"
@@ -88,8 +95,7 @@ class CrossCorrelation:
         )
 
         # validation data & data visualization
-        debug = True
-        if debug:
+        if debug and not enable_PCA:
             for col in common_df.columns:
                 fig = px.line(common_df, x=common_df.index, y=col)
                 fig.write_image(
@@ -97,6 +103,25 @@ class CrossCorrelation:
                 )
             self.plot_histogram()
             self.plot_pca()
+
+    def reduction_dim(self, n_components, ratio):
+        # perform PCA on the observations
+        pca = PCA(n_components)
+        pca_model = pca.fit(
+            self.observatoins[: int(self.observatoins.shape[0] * ratio)]
+        )
+
+        explained_variance = pca_model.explained_variance_
+        explained_variance_ratio = pca_model.explained_variance_ratio_
+        singular_values = pca_model.singular_values_
+        print_c(
+            f"[n_components={n_components}] \
+                explained_variance:{                                    } \
+                    explained_variance_ratio: {explained_variance_ratio} \
+                        singular_values:{singular_values}"
+        )
+
+        return pca_model.transform(self.observatoins)
 
     def std_idx(self, alpha=2):
         _std = self.forward_returns.std() * alpha
