@@ -116,7 +116,7 @@ class CrossCorrelation:
         singular_values = pca_model.singular_values_
         print_c(
             f"[n_components={n_components}] \
-                explained_variance:{                                    } \
+                explained_variance:{explained_variance} \
                     explained_variance_ratio: {explained_variance_ratio} \
                         singular_values:{singular_values}"
         )
