@@ -103,6 +103,7 @@ def train(
     plot_val=False,
     loss_type="mse",
     domain="context",
+    weight_vars=None,
 ):
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = loss_dict[loss_type]
@@ -185,13 +186,14 @@ cc = CrossCorrelation(
     x_file_name="./src/local_data/raw/x_toys.csv",
     y_file_name="./src/local_data/raw/y_toys.csv",
     debug=False,
-    n_components_pca=10,
+    n_components_pca=2,
     ratio=tv_ratio,  # n_components_pca is not None 일 때 PCA 학습 샘풀, 차원 축소된 observation 은 전체 샘플 다 포함 함
     alpha=1.5,
 )
 dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
 cc = load("./src/local_data/assets/crosscorrelation.pkl")
 data = cc.observatoins_merge_idx
+weight_vars = cc.weight_variables
 
 # train configuration
 max_seq_length = 120
@@ -208,34 +210,33 @@ val_observations = data[train_size:]
 
 # model training
 for k, v in loss_dict.items():
-    if k == "earth_mover":
-        train(
-            model=MaskedLanguageModel(hidden_size, max_seq_length, num_features).to(
-                device
+    print_c("2차원 축소 데이터로 플롯에 영향이 있었는지 체크")
+    train(
+        model=MaskedLanguageModel(hidden_size, max_seq_length, num_features).to(device),
+        train_dataloader=DataLoader(
+            MaskedLanguageModelDataset(
+                train_observations,
+                max_seq_length,
             ),
-            train_dataloader=DataLoader(
-                MaskedLanguageModelDataset(
-                    train_observations,
-                    max_seq_length,
-                ),
-                batch_size=batch_size,
-                shuffle=True,
+            batch_size=batch_size,
+            shuffle=True,
+        ),
+        val_dataloader=DataLoader(
+            MaskedLanguageModelDataset(
+                val_observations, max_seq_length, gen_random_mask=False
             ),
-            val_dataloader=DataLoader(
-                MaskedLanguageModelDataset(
-                    val_observations, max_seq_length, gen_random_mask=False
-                ),
-                batch_size=batch_size,
-                shuffle=False,
-            ),
-            num_epochs=epochs,
-            lr=step_size,
-            weight_decay=1e-4,
-            plot_train=True,
-            plot_val=True,
-            loss_type=k,
-            domain="context",
-        )
+            batch_size=batch_size,
+            shuffle=False,
+        ),
+        num_epochs=epochs,
+        lr=step_size,
+        weight_decay=1e-4,
+        plot_train=True,
+        plot_val=True,
+        loss_type=k,
+        domain="context",
+        weight_vars=weight_vars,
+    )
 
-        # plot result
-        plot_animate(loss_type=k)
+    # plot result
+    plot_animate(loss_type=k)

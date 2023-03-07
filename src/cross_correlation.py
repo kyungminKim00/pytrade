@@ -79,9 +79,10 @@ class CrossCorrelation:
         )
         self.predefined_mask = self.std_idx(alpha=alpha)
         self.num_sample = self.observatoins.shape[0]
+        self.weight_variables = np.ones(self.observatoins.shape[1])
 
         if n_components_pca is not None:
-            self.observatoins = self.reduction_dim(
+            self.observatoins, self.weight_variables = self.reduction_dim(
                 n_components=n_components_pca, ratio=ratio
             )
 
@@ -135,7 +136,9 @@ class CrossCorrelation:
             explained_variance_ratio.sum() > 0.95
         ), "[at cross_cprreation.py] increase n_components"
 
-        return pca_model.transform(self.observatoins)
+        return pca_model.transform(self.observatoins), np.array(
+            explained_variance_ratio
+        )
 
     def std_idx(self, alpha=2):
         _std = self.forward_returns.std() * alpha
