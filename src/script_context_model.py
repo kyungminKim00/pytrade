@@ -6,6 +6,7 @@ import plotly.express as px
 import ray
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from joblib import dump, load
 from plotly.subplots import make_subplots
@@ -62,30 +63,11 @@ def plot_res(plot_data_train, plot_data_val, epoch, loss_type):
 
 def plot_animate(loss_type):
     base_dir = "./src/local_data/assets/plot_check"
-    # train_files, val_files = [], []
     files = []
-    # # Create a list of PNG files
-    # for fn in os.listdir(base_dir):
-    #     if f"cc_2D_train_{loss_type}" in fn:
-    #         train_files.append(f"{base_dir}/{fn}")
-    #     if f"cc_2D_val_{loss_type}" in fn:
-    #         val_files.append(f"{base_dir}/{fn}")
-
     for fn in os.listdir(base_dir):
         if f"cc_2D_{loss_type}" in fn:
             files.append(f"{base_dir}/{fn}")
 
-    # files = train_files
-    # for idx, files in enumerate([train_files, val_files]):
-    #     mode = "train" if idx == 0 else "val"
-    #     if len(files) > 0:
-    #         images = [imageio.imread(fn) for fn in files]
-    #         imageio.mimsave(
-    #             f"{base_dir}/{loss_type}/animated_image_{mode}_{loss_type}.gif",
-    #             images,
-    #             duration=1,
-    #             loop=1,
-    #         )
     for file in files:
         if len(files) > 0:
             images = [imageio.imread(fn) for fn in file]
@@ -98,12 +80,15 @@ def plot_animate(loss_type):
 
 
 def earth_mover(y_pred, y_true):
-    # return torch.mean(
-    #     torch.square(torch.cumsum(y_true, dim=-1) - torch.cumsum(y_pred, dim=-1)),
-    #     dim=-1,
-    # )
     return torch.mean(
-        torch.square(torch.cumsum(y_true, dim=-1) - torch.cumsum(y_pred, dim=-1)),
+        torch.square(
+            torch.mean(
+                torch.square(
+                    torch.cumsum(y_true, dim=-1) - torch.cumsum(y_pred, dim=-1)
+                ),
+                dim=-1,
+            )
+        )
     )
 
 
@@ -117,6 +102,7 @@ def train(
     plot_train=False,
     plot_val=False,
     loss_type="mse",
+    domain="context",
 ):
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = loss_dict[loss_type]
@@ -134,10 +120,9 @@ def train(
             )
             if mask.sum() > 0:
                 optimizer.zero_grad()
-                output = model(masked_obs)
+                output = model(masked_obs, domain)
                 # Calculate loss only for masked tokens
                 loss = criterion(output[mask], obs[mask])
-
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
@@ -161,8 +146,7 @@ def train(
                     obs.to(device),
                 )
                 if mask.sum() > 0:
-                    output = model(masked_obs)
-                    # Calculate loss only for masked tokens
+                    output = model(masked_obs, domain)
                     loss = criterion(output[mask], obs[mask])
                     val_loss += loss.item()
                     dist += torch.abs(output[mask] - obs[mask]).sum()
@@ -214,7 +198,7 @@ max_seq_length = 120
 batch_size = 4
 hidden_size = 256
 num_features = data.shape[1] - 1
-epochs = 50
+epochs = 100
 step_size = 5e-5
 
 # Split data into train and validation sets
@@ -224,27 +208,34 @@ val_observations = data[train_size:]
 
 # model training
 for k, v in loss_dict.items():
-    train(
-        model=MaskedLanguageModel(hidden_size, max_seq_length, num_features).to(device),
-        train_dataloader=DataLoader(
-            MaskedLanguageModelDataset(train_observations, max_seq_length),
-            batch_size=batch_size,
-            shuffle=True,
-        ),
-        val_dataloader=DataLoader(
-            MaskedLanguageModelDataset(
-                val_observations, max_seq_length, gen_random_mask=False
+    if k == "earth_mover":
+        train(
+            model=MaskedLanguageModel(hidden_size, max_seq_length, num_features).to(
+                device
             ),
-            batch_size=batch_size,
-            shuffle=False,
-        ),
-        num_epochs=epochs,
-        lr=step_size,
-        weight_decay=1e-4,
-        plot_train=True,
-        plot_val=True,
-        loss_type=k,
-    )
+            train_dataloader=DataLoader(
+                MaskedLanguageModelDataset(
+                    train_observations,
+                    max_seq_length,
+                ),
+                batch_size=batch_size,
+                shuffle=True,
+            ),
+            val_dataloader=DataLoader(
+                MaskedLanguageModelDataset(
+                    val_observations, max_seq_length, gen_random_mask=False
+                ),
+                batch_size=batch_size,
+                shuffle=False,
+            ),
+            num_epochs=epochs,
+            lr=step_size,
+            weight_decay=1e-4,
+            plot_train=True,
+            plot_val=True,
+            loss_type=k,
+            domain="context",
+        )
 
-    # plot result
-    plot_animate(loss_type=k)
+        # plot result
+        plot_animate(loss_type=k)

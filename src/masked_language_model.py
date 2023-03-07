@@ -89,7 +89,12 @@ class PositionalEncoding(nn.Module):
 
 
 class MaskedLanguageModel(nn.Module):
-    def __init__(self, hidden_size: int, max_seq_length: int, num_features: int):
+    def __init__(
+        self,
+        hidden_size: int,
+        max_seq_length: int,
+        num_features: int,
+    ):
         super(MaskedLanguageModel, self).__init__()
         self.max_seq_length = max_seq_length
 
@@ -105,19 +110,25 @@ class MaskedLanguageModel(nn.Module):
             num_layers=6,
         )
         self.fc = nn.Linear(hidden_size, num_features)
+        self.fc_up = nn.Linear(hidden_size, 1)
+        self.fc_down = nn.Linear(hidden_size, 1)
+        self.fc_std = nn.Linear(hidden_size, 1)
         self.pos_encoder = PositionalEncoding(hidden_size, max_seq_length)
 
-    def forward(self, masked_obs: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, masked_obs: torch.Tensor, domain: str = "context"
+    ) -> torch.Tensor:
         obs = self.embedding(masked_obs)
         obs = obs.permute(1, 0, 2)  # batch sizes 는 고정인 반면, sequeuce는 다양 함 (계산의 효율성)
         obs = self.pos_encoder(obs)
 
-        # 이미 인풋 처리 되어 있는 경우 임
-        # mask = mask.unsqueeze(0).repeat(self.max_seq_length, 1, 1)
-        # output = self.transformer_encoder(obs, mask)
-
         output = self.transformer_encoder(obs)
-        output = self.fc(output)
-        output = output.permute(1, 0, 2)
+
+        if domain == "band_prediction":
+            output = self.fc(output)
+            output = output.permute(1, 0, 2)
+        if domain == "context":
+            output = self.fc(output)
+            output = output.permute(1, 0, 2)
 
         return output
