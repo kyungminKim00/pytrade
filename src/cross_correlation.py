@@ -126,15 +126,14 @@ class CrossCorrelation:
         )
 
         explained_variance_ratio = pca_model.explained_variance_ratio_
-        singular_values = pca_model.singular_values_
         print_c(
             f"[n_components={n_components}] \n\
                     explained_variance_ratio: {explained_variance_ratio} \n\
-                        singular_values:{singular_values}"
+                        explained_variance:{sum(explained_variance_ratio)}"
         )
         assert (
             explained_variance_ratio.sum() > 0.95
-        ), "[at cross_cprreation.py]increase n_components"
+        ), "[at cross_cprreation.py] increase n_components"
 
         return pca_model.transform(self.observatoins)
 
