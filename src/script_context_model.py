@@ -168,7 +168,7 @@ def train(
         # Save best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), "./src/assets/context_model.pt")
+            torch.save(model.state_dict(), f"./src/assets/{loss_type}_context_model.pt")
 
 
 loss_dict = {
