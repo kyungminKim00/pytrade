@@ -266,7 +266,7 @@ hidden_size = 32  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 
 num_features = data.shape[1] - 1
 epochs = 150
 step_size = 4e-5
-enable_concept = True
+enable_concept = False  # Fix 실험값 변경하지 말기
 print(f"num_features {num_features}")
 
 # Split data into train and validation sets
