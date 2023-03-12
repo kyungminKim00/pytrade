@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import ray
+import umap
 from sklearn.decomposition import PCA
 
 from util import print_c
@@ -31,7 +32,7 @@ class CrossCorrelation:
         x_file_name,
         y_file_name,
         debug,
-        n_components_pca=None,
+        data_tranform=None,
         ratio=0.8,
         alpha=2,
     ):
@@ -81,11 +82,24 @@ class CrossCorrelation:
         self.num_sample = self.observatoins.shape[0]
         self.weight_variables = np.ones(self.observatoins.shape[1])
 
-        if n_components_pca is not None:
-            self.observatoins, self.weight_variables = self.reduction_dim(
-                n_components=n_components_pca, ratio=ratio
+        self.reducer = None
+        if data_tranform is not None:
+            if data_tranform["n_components"] == np.inf:
+                data_tranform["n_components"] = self.observatoins.shape[1]
+
+            self.observatoins, self.weight_variables, self.reducer = self.reduction_dim(
+                n_components=data_tranform["n_components"],
+                ratio=ratio,
+                method=data_tranform["method"],
             )
 
+        # 예약어 np.nanmax(self.observatoins) * 2 + np.nanstd(self.observatoins) * 10
+        # 동적 할당 절대 안 됨. 문제의 소지가 많음
+        self.padding_torken = 0.00779
+
+        assert (
+            np.sum(self.observatoins == self.padding_torken) == 0
+        ), "A padding token is a reserved word and must have a unique value"
         assert (
             self.observatoins.shape[0] == self.forward_returns.shape[0]
         ), "observatoins, forward_returns and predefined_mask must have the same length"
@@ -108,8 +122,8 @@ class CrossCorrelation:
         # validation data & data visualization
         if debug:
             assert (
-                n_components_pca is None
-            ), "데이터 탐색용 함수, n_components_pca is None으로 두고 데이터 탐색"
+                data_tranform is None
+            ), "데이터 탐색용 함수, data_tranform is None으로 두고 데이터 탐색"
 
             for col in common_df.columns:
                 fig = px.line(common_df, x=common_df.index, y=col)
@@ -119,26 +133,34 @@ class CrossCorrelation:
             self.plot_histogram()
             self.plot_pca()
 
-    def reduction_dim(self, n_components, ratio):
-        # perform PCA on the observations
-        pca = PCA(n_components)
-        pca_model = pca.fit(
-            self.observatoins[: int(self.observatoins.shape[0] * ratio)]
-        )
+    def reduction_dim(self, n_components, ratio, method):
+        train_samples = self.observatoins[: int(self.observatoins.shape[0] * ratio)]
+        if method == "PCA":
+            pca = PCA(n_components=n_components)
+            reducer = pca.fit(train_samples)
 
-        explained_variance_ratio = pca_model.explained_variance_ratio_
+            transformed_data = reducer.transform(self.observatoins)
+            explained_variance_ratio = reducer.explained_variance_ratio_
+        elif method == "UMAP":
+            umap_i = umap.UMAP(n_components=n_components)
+            reducer = umap_i.fit(train_samples)
+
+            transformed_data = reducer.transform(self.observatoins)
+            variances = np.var(transformed_data, axis=0)
+            explained_variance_ratio = variances / variances.sum()
+        else:
+            assert False, "Not implemented method"
+
         print_c(
             f"[n_components={n_components}] \n\
-                    explained_variance_ratio: {explained_variance_ratio} \n\
-                        explained_variance:{sum(explained_variance_ratio)}"
+                        explained_variance_ratio: {explained_variance_ratio} \n\
+                            explained_variance:{sum(explained_variance_ratio)}"
         )
         assert (
             explained_variance_ratio.sum() > 0.95
         ), "[at cross_cprreation.py] increase n_components"
 
-        return pca_model.transform(self.observatoins), np.array(
-            explained_variance_ratio
-        )
+        return transformed_data, np.array(explained_variance_ratio), reducer
 
     def std_idx(self, alpha=2):
         _std = self.forward_returns.std() * alpha

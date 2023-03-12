@@ -56,6 +56,17 @@ def log(
         print(_str)
 
 
+def remove_files(folder_path, keyword, criteria):
+    # 폴더 안의 모든 파일을 가져옴
+    file_list = os.listdir(folder_path)
+
+    # 파일들 중 키워드를 포함하는 파일을 찾아서 삭제
+    for file_name in file_list:
+        if keyword in file_name:
+            if criteria <= float(file_name.split("_")[2]):
+                os.remove(os.path.join(folder_path, file_name))
+
+
 def print_warning(_str, _bool=True):
     # https://sosomemo.tistory.com/59
     if _bool:
