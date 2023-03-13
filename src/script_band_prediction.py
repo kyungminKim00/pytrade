@@ -10,7 +10,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from joblib import dump, load
 from plotly.subplots import make_subplots
-from torch.distributions import MultivariateNormal
 from torch.utils.data import DataLoader
 
 from cross_correlation import CrossCorrelation
@@ -93,20 +92,6 @@ def Earthmover(y_pred, y_true):
     )
 
 
-def KL_divergence(mu, log_var):
-    var = torch.exp(log_var)
-    kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=1).mean()
-    return kl_loss
-
-
-def cal_density(data):
-    # 2 components 만 활용 - 시각화 해석에 용이
-    diff = data.unsqueeze(1)[:, :, :2] - data.unsqueeze(0)[:, :, :2]
-    return (
-        torch.sqrt(torch.sum(diff**2, axis=-1)).sum(axis=0)[:, None] / data.shape[0]
-    )
-
-
 def train(
     model,
     train_dataloader,
@@ -117,92 +102,89 @@ def train(
     plot_train=False,
     plot_val=False,
     loss_type="mse",
-    domain="context",
+    domain="band_prediction",
     weight_vars=None,
 ):
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = optim.Adam(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=lr,
+        weight_decay=weight_decay,
+    )
     criterion = loss_dict[loss_type]
-    best_val_density = float("inf")
+    best_val = float("inf")
 
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0
         tmp_data, plot_data_train, plot_data_val = [], [], []
-        for masked_obs, mask, obs, _ in train_dataloader:
-            masked_obs, mask, obs = (
+        for masked_obs, mask, obs, fwd in train_dataloader:
+            up_mask = fwd[:, 0] != np.inf
+            down_mask = fwd[:, 1] != np.inf
+            masked_obs, mask, obs, fwd = (
                 masked_obs.to(device),
                 mask.to(device),
                 obs.to(device),
+                fwd.to(device),
             )
-            if mask.sum() > 0:
-                output, mean, log_var = model(masked_obs, domain)
-                # Calculate loss only for masked tokens
-                loss = criterion(output[mask], obs[mask]) + KL_divergence(mean, log_var)
+            output_vector_up, output_vector_down, output_vector_std = model(
+                masked_obs, domain
+            )
+            loss = (
+                criterion(output_vector_up[up_mask], fwd[up_mask, 0])
+                + criterion(output_vector_down[down_mask], fwd[down_mask, 1])
+                + criterion(output_vector_std, fwd[:, 2])
+            )
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-                optimizer.zero_grad()
-                # loss.backward(retain_graph=True)
-                # loss2.backward()
-                loss.backward()
-                optimizer.step()
+            train_loss += loss.item()
 
-                # train_loss += loss.item() + loss2.item()
-                train_loss += loss.item()
-
-                if plot_train:
-                    tmp_data.append(to_result(output[mask], label=1))
-                    tmp_data.append(to_result(obs[mask], label=0))
+            if plot_train:
+                tmp_data.append(to_result(output_vector_up, label=1))
+                tmp_data.append(to_result(output_vector_down, label=2))
+                tmp_data.append(
+                    to_result(torch.min(fwd[:, :2], dim=1).values[:, None], label=0)
+                )
         train_loss /= len(train_dataloader)
         if plot_train:
             plot_data_train = np.concatenate(tmp_data, axis=0)
 
         model.eval()
         val_loss = 0
-        dist = 0
         tmp_data = []
-        density_output, density_obs = [], []
         with torch.no_grad():
-            for masked_obs, mask, obs, _ in val_dataloader:
-                masked_obs, mask, obs = (
+            for masked_obs, mask, obs, fwd in val_dataloader:
+                up_mask = fwd[:, 0] != np.inf
+                down_mask = fwd[:, 1] != np.inf
+                masked_obs, mask, obs, fwd = (
                     masked_obs.to(device),
                     mask.to(device),
                     obs.to(device),
+                    fwd.to(device),
                 )
-                if mask.sum() > 0:
-                    (
-                        output,
-                        mean,
-                        log_var,
-                    ) = model(masked_obs, domain)
-                    loss = criterion(output[mask], obs[mask]) + KL_divergence(
-                        mean, log_var
-                    )
-                    val_loss += loss.item()
+                output_vector_up, output_vector_down, output_vector_std = model(
+                    masked_obs, domain
+                )
+                loss = (
+                    criterion(output_vector_up[up_mask], fwd[up_mask, 0])
+                    + criterion(output_vector_down[down_mask], fwd[down_mask, 1])
+                    + criterion(output_vector_std, fwd[:, 2])
+                )
+                val_loss += loss.item()
 
-                    dist += torch.abs(output[mask] - obs[mask]).sum()
-                    density_output.append(output[mask])
-                    density_obs.append(obs[mask])
-
-                    if plot_val:
-                        tmp_data.append(to_result(output[mask], label=1))
-                        tmp_data.append(to_result(obs[mask], label=0))
+                if plot_val:
+                    tmp_data.append(to_result(output_vector_up, label=1))
+                    tmp_data.append(to_result(output_vector_down, label=2))
+                    tmp_data.append(to_result(torch.min(fwd[:, :2], dim=1), label=0))
         val_loss /= len(val_dataloader)
-        dist /= len(val_dataloader)
-
-        density = []
-        if len(density_output) > 0:
-            density_output = torch.cat(density_output, dim=0)
-            density_obs = torch.cat(density_obs, dim=0)
-
-            for d_data in [density_output, density_obs]:
-                density.append(cal_density(d_data).mean())
-            density = torch.abs(density[1] - density[0])
 
         # terminal process
         if plot_val:
             plot_data_val = np.concatenate(tmp_data, axis=0)
             plot_res(plot_data_train, plot_data_val, epoch, loss_type)
 
-        sys_out_print = f"[{loss_type}] Epoch {epoch}: train loss {train_loss*10000:.4f} | val loss {val_loss*10000:.4f} | dist {dist:.4f} | density {density:.4f}"
+        sys_out_print = f"[{loss_type}] Epoch {epoch}: train loss {train_loss*10000:.4f} | val loss {val_loss*10000:.4f}"
         print(sys_out_print)
         with open(
             f"./src/local_data/assets/plot_check/{loss_type}/log.txt",
@@ -212,12 +194,12 @@ def train(
             print(sys_out_print, file=log)
 
         # Save best model
-        if density < best_val_density:
-            best_val_density = density
-            remove_files("./src/local_data/assets", loss_type, density)
+        if val_loss < best_val:
+            remove_files("./src/local_data/assets", loss_type, best_val)
+            best_val = val_loss
             torch.save(
                 model.state_dict(),
-                f"./src/local_data/assets/{loss_type}_{epoch}_{density:.4f}_context_model.pt",
+                f"./src/local_data/assets/{loss_type}_{epoch}_{best_val:.4f}_context_model.pt",
             )
 
 
@@ -227,9 +209,8 @@ loss_dict = {
     "Earthmover": Earthmover,
     "L1Loss": nn.L1Loss(),
 }
-
 tv_ratio = 0.8
-# # 특징 추출
+# 특징 추출
 # cc = CrossCorrelation(
 #     mv_bin=20,  # bin size for moving variance
 #     correation_bin=60,  # bin size to calculate cross correlation
@@ -242,6 +223,7 @@ tv_ratio = 0.8
 #     },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
 #     ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
 #     alpha=1.5,
+#     enable_predefined_mask=False,
 # )
 # dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
 cc = load("./src/local_data/assets/crosscorrelation.pkl")
@@ -250,13 +232,14 @@ weight_vars = cc.weight_variables
 padding_torken = cc.padding_torken
 forward_label = cc.forward_label
 
+
 # train configuration
 max_seq_length = 120
 batch_size = 4
 # latent size = hidden_size / 4 를 사용하고 있음. Hidden을 너무 적게 유지 할 수 없게 됨 나중에 데이터에 맞게 변경
 hidden_size = 32  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 변경을 적게 가함)
 num_features = data.shape[1] - 1
-epochs = 50  # 150
+epochs = 150
 step_size = 4e-5
 enable_concept = False  # Fix 실험값 변경하지 말기
 print(f"num_features {num_features}")
@@ -279,19 +262,41 @@ for k, it in [
 ]:
     print(f"{k}: {len(it)}")
 
-
-# context model training
+# find context model
+model_files = []
 for k, v in loss_dict.items():
+    loss_type = k
+    torket = f"{loss_type}_"
+    for fn in os.listdir("./src/local_data/assets"):
+        if torket in fn:
+            model_files.append(f"./src/local_data/assets/{fn}")
+model_files = list(set(model_files))
+
+
+# prediciton model 은 mse 고정
+for model_fn in model_files:
+    model = MaskedLanguageModel(
+        hidden_size, max_seq_length, num_features, enable_concept
+    )
+    model.load_state_dict(torch.load(model_fn))
+    model = model.to(device)
+
+    # 학습 파라미터 설정
+    for name, param in model.named_parameters():
+        print(name)
+        if "fc_up" not in name and "fc_down" not in name and "fc_std" not in name:
+            param.requires_grad = False
+        else:
+            param.requires_grad = True
+
     train(
-        model=MaskedLanguageModel(
-            hidden_size, max_seq_length, num_features, enable_concept
-        ).to(device),
+        model=model,
         train_dataloader=DataLoader(
             MaskedLanguageModelDataset(
                 train_observations,
                 max_seq_length,
                 padding_torken=padding_torken,
-                gen_random_mask=True,  # Fix
+                gen_random_mask=False,  # Fix
                 forward_label=train_label,
             ),
             batch_size=batch_size,
@@ -313,10 +318,10 @@ for k, v in loss_dict.items():
         weight_decay=1e-4,
         plot_train=True,
         plot_val=True,
-        loss_type=k,
-        domain="context",
+        loss_type="mse",
+        domain="band_prediction",
         weight_vars=weight_vars,
     )
 
     # plot result
-    plot_animate(loss_type=k)
+    plot_animate(loss_type=loss_dict["mse"])

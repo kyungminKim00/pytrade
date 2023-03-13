@@ -13,12 +13,14 @@ class MaskedLanguageModelDataset(Dataset):
         max_seq_length: int,
         padding_torken=None,
         gen_random_mask: bool = True,
+        forward_label: np.array = None,
     ):
         self.observations = observations[:, :-1]
         self.predefined_mask = observations[:, -1].astype(int)
         self.max_seq_length = max_seq_length
         self.gen_random_mask = gen_random_mask
         self.padding_torken = padding_torken
+        self.forward_label = forward_label
 
     def __len__(self):
         return len(self.observations) - self.max_seq_length
@@ -28,6 +30,7 @@ class MaskedLanguageModelDataset(Dataset):
 
         obs = self.observations[idx : idx + rnd_seq]
         predefined_mask = self.predefined_mask[idx : idx + rnd_seq]
+        fwd = self.forward_label[idx + rnd_seq - 1]
 
         seq_length, num_features = obs.shape
         padding_length = self.max_seq_length - seq_length
@@ -40,9 +43,7 @@ class MaskedLanguageModelDataset(Dataset):
             )
             obs = np.concatenate((obs, padding))
 
-        # Randomly mask a portion of the input sequence
         num_predefined_mask = predefined_mask.sum()
-
         mask = predefined_mask.tolist() + [0] * padding_length
 
         # add random mask to predefined_mask
@@ -71,9 +72,10 @@ class MaskedLanguageModelDataset(Dataset):
         masked_obs = torch.tensor(
             np.concatenate(masked_obs, axis=0).reshape(obs.shape), dtype=torch.float32
         )
+        fwd = torch.tensor(fwd, dtype=torch.float32)
 
         # mask: Mask the index to be hide (1 means to be hide)
-        return masked_obs, mask, obs
+        return masked_obs, mask, obs, fwd
 
 
 class PositionalEncoding(nn.Module):
@@ -132,7 +134,6 @@ class MaskedLanguageModel(nn.Module):
         self.fc_reparameterize = nn.Linear(latent_size, hidden_size)
 
         self.fc = nn.Linear(hidden_size, num_features)
-        self.fc_density = nn.Linear(hidden_size, 1)
         self.fc_up = nn.Linear(hidden_size, 1)
         self.fc_down = nn.Linear(hidden_size, 1)
         self.fc_std = nn.Linear(hidden_size, 1)
@@ -163,22 +164,21 @@ class MaskedLanguageModel(nn.Module):
         obs = self.pos_encoder(obs)
         output = self.transformer_encoder(obs)
 
+        output = nn.AdaptiveAvgPool1d(output.size(0))(output.permute(1, 2, 0))
+        output = output.permute(2, 0, 1)
+
+        mean = self.fc_variance(output)
+        log_var = self.fc_variance(output)
+        output = self.reparameterize(mean, log_var)
+        output = self.fc_reparameterize(output)
+
         if domain == "band_prediction":
-            output = self.fc(output)
-            output = output.permute(1, 0, 2)
+            output_vector_up = self.fc_up(output).permute(1, 0, 2)
+            output_vector_down = self.fc_down(output).permute(1, 0, 2)
+            output_vector_std = self.fc_std(output).permute(1, 0, 2)
+            return output_vector_up, output_vector_down, output_vector_std
+
         if domain == "context":
-            output = nn.AdaptiveAvgPool1d(output.size(0))(output.permute(1, 2, 0))
-            output = output.permute(2, 0, 1)
-
-            mean = self.fc_variance(output)
-            log_var = self.fc_variance(output)
-            output = self.reparameterize(mean, log_var)
-            output = self.fc_reparameterize(output)
-
             output_vector = self.fc(output)
-            output_density = self.fc_density(output)
-
             output_vector = output_vector.permute(1, 0, 2)
-            output_density = output_density.permute(1, 0, 2)
-
-        return output_vector, output_density, mean, log_var
+            return output_vector, mean, log_var

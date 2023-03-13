@@ -35,6 +35,8 @@ class CrossCorrelation:
         data_tranform=None,
         ratio=0.8,
         alpha=2,
+        enable_predefined_mask=True,
+        n_periods=60,
     ):
         # missing values
         self.X = self.fill_data(x_file_name)
@@ -75,10 +77,17 @@ class CrossCorrelation:
         self.observatoins, self.Y = self.ncc_windowed()
 
         # mendatory mask
-        self.forward_returns, self.observatoins = self.get_forward_returns(
-            self.Y, n_periods=60
-        )
-        self.predefined_mask = self.std_idx(alpha=alpha)
+        (
+            self.forward_returns,
+            self.observatoins,
+            self.forward_label,
+        ) = self.get_forward_returns(self.Y, n_periods=n_periods)
+
+        if enable_predefined_mask:
+            self.predefined_mask = self.std_idx(alpha=alpha)
+        else:
+            self.predefined_mask = None
+
         self.num_sample = self.observatoins.shape[0]
         self.weight_variables = np.ones(self.observatoins.shape[1])
 
@@ -94,7 +103,7 @@ class CrossCorrelation:
             )
 
         # 예약어 np.nanmax(self.observatoins) * 2 + np.nanstd(self.observatoins) * 10
-        # 동적 할당 절대 안 됨. 문제의 소지가 많음
+        # 동적 할당 절대 안 됨. 문제의 소지가 많음 (위의 식으로 계산해서 할당)
         self.padding_torken = 0.00779
 
         assert (
@@ -106,7 +115,8 @@ class CrossCorrelation:
 
         # 인덱스 합치기 (observatoins, mask)
         self.observatoins_merge_idx = np.zeros(self.observatoins.shape[0])
-        self.observatoins_merge_idx[self.predefined_mask] = 1
+        if self.predefined_mask is not None:
+            self.observatoins_merge_idx[self.predefined_mask] = 1
         self.observatoins_merge_idx = self.observatoins_merge_idx[:, None]
         self.observatoins_merge_idx = np.concatenate(
             (self.observatoins, self.observatoins_merge_idx), axis=1
@@ -199,14 +209,31 @@ class CrossCorrelation:
 
     def get_forward_returns(self, Y, n_periods=60):
         _forward_returns = np.zeros_like(Y)
+        _forward_std = np.zeros_like(Y)
         for i in range(len(Y) - n_periods):
             _forward_returns[i] = (Y[i + n_periods] - Y[i]) / Y[i]
 
+        for i in range(len(Y) - n_periods):
+            log_stock_prices = np.log(Y[i : i + n_periods])
+            log_price_diffs = np.diff(log_stock_prices)
+            std_dev = np.std(log_price_diffs)
+            _forward_std[i] = std_dev
+
         # align index
         _forward_returns = _forward_returns[:-n_periods]
+        _forward_std = _forward_std[:-n_periods]
         self.observatoins = self.observatoins[:-n_periods, :]
 
-        return _forward_returns, self.observatoins
+        # generate labels for prediction model
+        _forward_label = np.ones((_forward_returns.shape[0], 3)) * (np.inf)
+        up_mask = _forward_returns >= 0
+        down_mask = _forward_returns < 0
+
+        _forward_label[up_mask, 0] = _forward_returns[up_mask]
+        _forward_label[down_mask, 1] = _forward_returns[down_mask]
+        _forward_label[:, 2] = _forward_std
+
+        return _forward_returns, self.observatoins, _forward_label
 
     def plot_pca(self):
         # perform PCA on the observations
