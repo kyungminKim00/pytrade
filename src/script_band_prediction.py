@@ -117,22 +117,35 @@ def train(
         model.train()
         train_loss = 0
         tmp_data, plot_data_train, plot_data_val = [], [], []
-        for masked_obs, mask, obs, fwd in train_dataloader:
-            up_mask = fwd[:, 0] != np.inf
-            down_mask = fwd[:, 1] != np.inf
-            masked_obs, mask, obs, fwd = (
-                masked_obs.to(device),
-                mask.to(device),
+        for (
+            obs,
+            src_mask,
+            pad_mask,
+            fwd,
+            dec_obs,
+            dec_src_mask,
+            dec_pad_mask,
+        ) in train_dataloader:
+            fwd_mask = fwd != np.inf
+            up_mask = fwd_mask[:, :, 0]
+            down_mask = fwd_mask[:, :, 1]
+            std_mask = fwd_mask[:, :, 2]
+            obs, src_mask, pad_mask, fwd, dec_obs, dec_obs_mask, dec_obs_pad_mask = (
                 obs.to(device),
+                src_mask.to(device),
+                pad_mask.to(device),
                 fwd.to(device),
+                dec_obs.to(device),
+                dec_obs_mask.to(device),
+                dec_obs_pad_mask.to(device),
             )
             output_vector_up, output_vector_down, output_vector_std = model(
-                masked_obs, domain
+                obs, src_mask, pad_mask, domain, dec_obs, dec_src_mask, dec_pad_mask
             )
             loss = (
                 criterion(output_vector_up[up_mask], fwd[up_mask, 0])
                 + criterion(output_vector_down[down_mask], fwd[down_mask, 1])
-                + criterion(output_vector_std, fwd[:, 2])
+                + criterion(output_vector_std[std_mask], fwd[std_mask, 2])
             )
             optimizer.zero_grad()
             loss.backward()
@@ -154,22 +167,44 @@ def train(
         val_loss = 0
         tmp_data = []
         with torch.no_grad():
-            for masked_obs, mask, obs, fwd in val_dataloader:
-                up_mask = fwd[:, 0] != np.inf
-                down_mask = fwd[:, 1] != np.inf
-                masked_obs, mask, obs, fwd = (
-                    masked_obs.to(device),
-                    mask.to(device),
+            for (
+                obs,
+                src_mask,
+                pad_mask,
+                fwd,
+                dec_obs,
+                dec_src_mask,
+                dec_pad_mask,
+            ) in val_dataloader:
+                fwd_mask = fwd != np.inf
+                up_mask = fwd_mask[:, :, 0]
+                down_mask = fwd_mask[:, :, 1]
+                std_mask = fwd_mask[:, :, 2]
+                (
+                    obs,
+                    src_mask,
+                    pad_mask,
+                    fwd,
+                    dec_obs,
+                    dec_obs_mask,
+                    dec_obs_pad_mask,
+                ) = (
                     obs.to(device),
+                    src_mask.to(device),
+                    pad_mask.to(device),
                     fwd.to(device),
+                    dec_obs.to(device),
+                    dec_obs_mask.to(device),
+                    dec_obs_pad_mask.to(device),
                 )
                 output_vector_up, output_vector_down, output_vector_std = model(
-                    masked_obs, domain
+                    obs, src_mask, pad_mask, domain, dec_obs, dec_src_mask, dec_pad_mask
                 )
+
                 loss = (
                     criterion(output_vector_up[up_mask], fwd[up_mask, 0])
                     + criterion(output_vector_down[down_mask], fwd[down_mask, 1])
-                    + criterion(output_vector_std, fwd[:, 2])
+                    + criterion(output_vector_std[std_mask], fwd[std_mask, 2])
                 )
                 val_loss += loss.item()
 
@@ -210,7 +245,7 @@ loss_dict = {
     "L1Loss": nn.L1Loss(),
 }
 tv_ratio = 0.8
-# 특징 추출
+# # 특징 추출
 # cc = CrossCorrelation(
 #     mv_bin=20,  # bin size for moving variance
 #     correation_bin=60,  # bin size to calculate cross correlation
@@ -278,16 +313,16 @@ for model_fn in model_files:
     model = MaskedLanguageModel(
         hidden_size, max_seq_length, num_features, enable_concept
     )
-    model.load_state_dict(torch.load(model_fn))
-    model = model.to(device)
+    # model.load_state_dict(torch.load(model_fn))
+    # model = model.to(device)
 
-    # 학습 파라미터 설정
-    for name, param in model.named_parameters():
-        print(name)
-        if "fc_up" not in name and "fc_down" not in name and "fc_std" not in name:
-            param.requires_grad = False
-        else:
-            param.requires_grad = True
+    # # 학습 파라미터 설정
+    # for name, param in model.named_parameters():
+    #     print(name)
+    #     if "fc_up" not in name and "fc_down" not in name and "fc_std" not in name:
+    #         param.requires_grad = False
+    #     else:
+    #         param.requires_grad = True
 
     train(
         model=model,

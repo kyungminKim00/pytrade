@@ -128,16 +128,19 @@ def train(
         model.train()
         train_loss = 0
         tmp_data, plot_data_train, plot_data_val = [], [], []
-        for masked_obs, mask, obs, _ in train_dataloader:
-            masked_obs, mask, obs = (
-                masked_obs.to(device),
-                mask.to(device),
+        for obs, src_mask, pad_mask, _, _, _, _ in train_dataloader:
+            src_mask, pad_mask, obs = (
+                src_mask.to(device),
+                pad_mask.to(device),
                 obs.to(device),
             )
-            if mask.sum() > 0:
-                output, mean, log_var = model(masked_obs, domain)
+            contain_blank = ~src_mask
+            if contain_blank.sum() > 0:
+                output, mean, log_var = model(obs, src_mask, pad_mask, domain)
                 # Calculate loss only for masked tokens
-                loss = criterion(output[mask], obs[mask]) + KL_divergence(mean, log_var)
+                loss = criterion(output[~src_mask], obs[~src_mask]) + KL_divergence(
+                    mean, log_var
+                )
 
                 optimizer.zero_grad()
                 # loss.backward(retain_graph=True)
@@ -149,8 +152,8 @@ def train(
                 train_loss += loss.item()
 
                 if plot_train:
-                    tmp_data.append(to_result(output[mask], label=1))
-                    tmp_data.append(to_result(obs[mask], label=0))
+                    tmp_data.append(to_result(output[~src_mask], label=1))
+                    tmp_data.append(to_result(obs[~src_mask], label=0))
         train_loss /= len(train_dataloader)
         if plot_train:
             plot_data_train = np.concatenate(tmp_data, axis=0)
@@ -161,30 +164,27 @@ def train(
         tmp_data = []
         density_output, density_obs = [], []
         with torch.no_grad():
-            for masked_obs, mask, obs, _ in val_dataloader:
-                masked_obs, mask, obs = (
-                    masked_obs.to(device),
-                    mask.to(device),
+            for obs, src_mask, pad_mask, _, _, _, _ in val_dataloader:
+                src_mask, pad_mask, obs = (
+                    src_mask.to(device),
+                    pad_mask.to(device),
                     obs.to(device),
                 )
-                if mask.sum() > 0:
-                    (
-                        output,
-                        mean,
-                        log_var,
-                    ) = model(masked_obs, domain)
-                    loss = criterion(output[mask], obs[mask]) + KL_divergence(
+                contain_blank = ~src_mask
+                if contain_blank.sum() > 0:
+                    output, mean, log_var = model(obs, src_mask, pad_mask, domain)
+                    loss = criterion(output[~src_mask], obs[~src_mask]) + KL_divergence(
                         mean, log_var
                     )
                     val_loss += loss.item()
 
-                    dist += torch.abs(output[mask] - obs[mask]).sum()
-                    density_output.append(output[mask])
-                    density_obs.append(obs[mask])
+                    dist += torch.abs(output[~src_mask] - obs[~src_mask]).sum()
+                    density_output.append(output[~src_mask])
+                    density_obs.append(obs[~src_mask])
 
                     if plot_val:
-                        tmp_data.append(to_result(output[mask], label=1))
-                        tmp_data.append(to_result(obs[mask], label=0))
+                        tmp_data.append(to_result(output[~src_mask], label=1))
+                        tmp_data.append(to_result(obs[~src_mask], label=0))
         val_loss /= len(val_dataloader)
         dist /= len(val_dataloader)
 

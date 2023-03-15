@@ -104,6 +104,7 @@ class CrossCorrelation:
 
         # 예약어 np.nanmax(self.observatoins) * 2 + np.nanstd(self.observatoins) * 10
         # 동적 할당 절대 안 됨. 문제의 소지가 많음 (위의 식으로 계산해서 할당)
+        # pad_mask로 대체 함 쓰이지 않음
         self.padding_torken = 0.00779
 
         assert (
@@ -114,9 +115,9 @@ class CrossCorrelation:
         ), "observatoins, forward_returns and predefined_mask must have the same length"
 
         # 인덱스 합치기 (observatoins, mask)
-        self.observatoins_merge_idx = np.zeros(self.observatoins.shape[0])
+        self.observatoins_merge_idx = np.ones(self.observatoins.shape[0])
         if self.predefined_mask is not None:
-            self.observatoins_merge_idx[self.predefined_mask] = 1
+            self.observatoins_merge_idx[self.predefined_mask] = 0
         self.observatoins_merge_idx = self.observatoins_merge_idx[:, None]
         self.observatoins_merge_idx = np.concatenate(
             (self.observatoins, self.observatoins_merge_idx), axis=1
