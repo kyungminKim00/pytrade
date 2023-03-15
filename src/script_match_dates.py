@@ -9,6 +9,9 @@ import ray
 import yfinance as yf
 from plotly.subplots import make_subplots
 
+from util import print_c
+
+ray.shutdown()
 ray.init()
 
 
@@ -17,11 +20,16 @@ ray.init()
 #     return idx, np.abs(src.values - dest.values).sum()
 
 
-# @ray.remote(num_cpus=4)
-def similarity(idx, src, dest):
-    s_mask = src > 0
-    d_mask = dest > 0
-    if (s_mask.values == d_mask.values).all():
+@ray.remote(num_cpus=4)
+def similarity(idx, src, src_mask, dest, dest_mask):
+    a_condition = (src_mask.values == dest_mask.values).all()
+    b_condition = (
+        src.rank(method="min").values == dest.rank(method="min").values
+    ).all()
+    c_condition = (
+        src.rank(method="min", axis=1).values == dest.rank(method="min", axis=1).values
+    ).all()
+    if a_condition and b_condition and c_condition:
         score = np.abs(src.values - dest.values).sum()
     else:
         score = np.inf
@@ -46,19 +54,29 @@ def plot_animate(loss_type):
             )
 
 
-def get_dates(recent_data, data_log, bins):
-    # return ray.get(
-    #     [
-    #         similarity.remote(
-    #             data_log.index[idx], recent_data, data_log.iloc[idx - 5 : idx, :]
-    #         )
-    #         for idx in range(bins, data_log.shape[0])
-    #     ]
-    # )
-    return [
-        similarity(data_log.index[idx], recent_data, data_log.iloc[idx - 5 : idx, :])
-        for idx in range(bins, data_log.shape[0])
-    ]
+def get_dates(src_data, src_mask, data_return, data_return_mask, bins):
+    return ray.get(
+        [
+            similarity.remote(
+                data_return.index[idx - 1],
+                src_data,
+                src_mask,
+                data_return.iloc[idx - 5 : idx, :],
+                data_return_mask.iloc[idx - 5 : idx, :],
+            )
+            for idx in range(bins, data_return.shape[0] + 1)
+        ]
+    )
+    # return [
+    #     similarity(
+    #         data_return.index[idx - 1],
+    #         src_data,
+    #         src_mask,
+    #         data_return.iloc[idx - 5 : idx, :],
+    #         data_return_mask.iloc[idx - 5 : idx, :],
+    #     )
+    #     for idx in range(bins, data_return.shape[0] + 1)
+    # ]
 
 
 def raw_date(
@@ -77,36 +95,14 @@ def raw_date(
     data.set_index("Date", inplace=True)
     data.drop(columns=["Adj Close", "Volume"], inplace=True)
 
-    data_log = np.log(data) - np.log(data.shift(1))
-    data_log = data_log[1:]
-    data = data[1:]
-    return data, data_log
+    data_return = data.pct_change() * 100
+    data_return_mask = data_return.diff()
+    data_return_mask = data_return_mask.iloc[:, :] > 0
 
-
-def raw_date2(
-    fn="./src/local_data/raw/kospi_1d.csv",
-    interval="1d",
-    download=False,
-    ticker="^KS11",
-):
-    if download:
-        # KOSPI - Download
-        ticker = ticker
-        data = yf.download(tickers=ticker, period="max", interval=interval)
-        pd.DataFrame(data).to_csv(fn)
-    # Data Load
-    data = pd.read_csv(fn)
-    data.set_index("Date", inplace=True)
-    data.drop(columns=["Adj Close", "Volume"], inplace=True)
-
-    data_log = pd.DataFrame()
-    data_log["Open"] = np.log(data["Close"]) - np.log(data["Open"])
-    data_log["High"] = np.log(data["Close"]) - np.log(data["High"])
-    data_log["Low"] = np.log(data["Close"]) - np.log(data["Low"])
-    data_log["Close"] = 0
-    data_log = data_log[1:]
-    data = data[1:]
-    return data, data_log
+    data_return = data_return[2:]
+    data = data[2:]
+    data_return_mask = data_return_mask[2:]
+    return data, data_return, data_return_mask
 
 
 def plot_similar_dates(data, similar_dates, bins):
@@ -162,17 +158,26 @@ def plot_similar_dates(data, similar_dates, bins):
         )
 
 
-def retrive_similar_date(src_idx, bins, data_log, max_samples=100):
-    src_data = data_log.iloc[src_idx - bins : src_idx, :]
+def retrive_similar_date(src_idx, bins, data_return, data_return_mask, max_samples=100):
+    src_data = data_return.iloc[src_idx - bins : src_idx, :]
+    src_mask = data_return_mask.iloc[src_idx - bins : src_idx, :]
     date = src_data.index[-1]
-    res = list(map(list, get_dates(src_data, data_log, bins)))
-    res.sort(key=lambda x: x[1])
+    res = list(
+        map(list, get_dates(src_data, src_mask, data_return, data_return_mask, bins))
+    )
+    res = [it for it in res if it[1] != np.inf]
+    if len(res) > 0:
+        res.sort(key=lambda x: x[1])
 
-    # 가장 유사한 max_samples 개
-    return {
-        "base_date": date,
-        "similar_date": np.array(res[:max_samples])[:, 0].tolist(),
-    }
+        n_samples = min(len(res), max_samples)
+        res = np.array(res[:n_samples])
+        score = list(map(float, res[:, 1]))
+        return {
+            "base_date": date,
+            "similar_date": res[:, 0].tolist(),
+            "score": score,
+        }
+    return {}
 
 
 def caculate_up_probability(data, similar_dates, fwd):
@@ -195,13 +200,13 @@ def caculate_up_probability(data, similar_dates, fwd):
 
 if __name__ == "__main__":
     # # 데이터 다운로드
-    # data, data_log = raw_date(
+    # data, data_return = raw_date(
     #     fn="./src/local_data/raw/kospi_1d.csv",
     #     interval="1d",
     #     download=False,
     #     ticker="^KS11",
     # )
-    data, data_log = raw_date2(
+    data, data_return, data_return_mask = raw_date(
         fn="./src/local_data/raw/kospi_1d.csv",
         interval="1d",
         download=False,
@@ -210,14 +215,16 @@ if __name__ == "__main__":
 
     # 최근 5일 데이터 기준
     bins = 5  # 설정 값
-    today_index = data_log.shape[0]  # 설정 값
+    today_index = data_return.shape[0]  # 설정 값
     fwd = 5  # 설정 값
 
-    # 가장 유사한 100 개
-    similar_dates = retrive_similar_date(today_index, bins, data_log, max_samples=5)
-
-    # 확률 값 추가
-    similar_dates = caculate_up_probability(data, similar_dates, fwd)
-
-    # plot
-    plot_similar_dates(data, similar_dates, bins)
+    for today_index in range(bins, today_index + 1):
+        similar_dates = retrive_similar_date(
+            today_index, bins, data_return, data_return_mask, max_samples=5
+        )
+        print_c(f"Date: {similar_dates['base_date']}")
+        if len(similar_dates["similar_date"]) > 1:
+            # 확률 값 추가
+            similar_dates = caculate_up_probability(data, similar_dates, fwd)
+            # plot
+            plot_similar_dates(data, similar_dates, bins)
