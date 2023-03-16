@@ -26,9 +26,9 @@ def similarity(idx, src, src_mask, dest, dest_mask):
     b_condition = (
         src.rank(method="min").values == dest.rank(method="min").values
     ).all()
-    c_condition = (
-        src.rank(method="min", axis=1).values == dest.rank(method="min", axis=1).values
-    ).all()
+    # c_condition = (
+    #     src.rank(method="min", axis=1).values == dest.rank(method="min", axis=1).values
+    # ).all()
 
     # # 오리지널 버젼
     # if a_condition and b_condition and c_condition:
