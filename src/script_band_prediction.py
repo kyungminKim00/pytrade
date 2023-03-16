@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 
 from cross_correlation import CrossCorrelation
 from masked_language_model import MaskedLanguageModel, MaskedLanguageModelDataset
+from opm import AdamW
 from util import print_c, remove_files
 
 print("Ray initialized already" if ray.is_initialized() else ray.init())
@@ -105,7 +106,12 @@ def train(
     domain="band_prediction",
     weight_vars=None,
 ):
-    optimizer = optim.Adam(
+    # optimizer = optim.Adam(
+    #     filter(lambda p: p.requires_grad, model.parameters()),
+    #     lr=lr,
+    #     weight_decay=weight_decay,
+    # )
+    optimizer = AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=lr,
         weight_decay=weight_decay,

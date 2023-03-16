@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 from cross_correlation import CrossCorrelation
 from masked_language_model import MaskedLanguageModel, MaskedLanguageModelDataset
 from util import print_c, remove_files
+from opm import AdamW
 
 print("Ray initialized already" if ray.is_initialized() else ray.init())
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -107,6 +108,13 @@ def cal_density(data):
     )
 
 
+# adam 에 정규화 적용 시 - "Decoupled weight decay regularization" (2017)
+def update_weights(model, optimizer, lr, weight_decay):
+    for name, param in model.named_parameters():
+        if "weight" in name:
+            param.data.add_(-weight_decay * lr * param.data)
+
+
 def train(
     model,
     train_dataloader,
@@ -120,7 +128,9 @@ def train(
     domain="context",
     weight_vars=None,
 ):
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    # optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
     criterion = loss_dict[loss_type]
     best_val_density = float("inf")
 

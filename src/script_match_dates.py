@@ -29,7 +29,14 @@ def similarity(idx, src, src_mask, dest, dest_mask):
     c_condition = (
         src.rank(method="min", axis=1).values == dest.rank(method="min", axis=1).values
     ).all()
-    if a_condition and b_condition and c_condition:
+
+    # # 오리지널 버젼
+    # if a_condition and b_condition and c_condition:
+    #     score = np.abs(src.values - dest.values).sum()
+    # else:
+    #     score = np.inf
+
+    if a_condition and b_condition:
         score = np.abs(src.values - dest.values).sum()
     else:
         score = np.inf
@@ -123,10 +130,13 @@ def plot_similar_dates(data, similar_dates, bins):
                 high=base_data["High"],
                 low=base_data["Low"],
                 close=base_data["Close"],
+                increasing="red",  # 상승봉
+                decreasing="blue",  # 하락봉
             )
         ]
     )
     fig1.update_layout(xaxis_rangeslider_visible=False)
+    fig1.show()
 
     for f_ord, t_idx in enumerate(target_idx.tolist()):
         target_data = data.iloc[t_idx - bins : t_idx]
@@ -138,10 +148,13 @@ def plot_similar_dates(data, similar_dates, bins):
                     high=target_data["High"],
                     low=target_data["Low"],
                     close=target_data["Close"],
+                    increasing="red",  # 상승봉
+                    decreasing="blue",  # 하락봉
                 )
             ]
         )
         fig2.update_layout(xaxis_rangeslider_visible=False)
+        fig2.show()
 
         # Create subplots with 1 row and 2 columns
         fig_sub = make_subplots(rows=1, cols=2)

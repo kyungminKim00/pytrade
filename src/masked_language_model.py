@@ -220,6 +220,23 @@ class MaskedLanguageModel(nn.Module):
         z = mean + eps * std
         return z
 
+    def generate_src_mask(src_tokens: torch.Tensor, mask_idx: int) -> torch.Tensor:
+        """
+        입력 토큰에 대한 마스크를 생성하는 함수
+        src_tokens (torch.Tensor): 입력 토큰 (batch_size, seq_len)
+        mask_idx (int): 패딩 토큰의 인덱스
+
+        Returns:
+            torch.Tensor: 마스크 텐서 (batch_size, seq_len, seq_len)
+        """
+        # 패딩 토큰에 해당하는 위치를 0으로 설정
+        src_mask = (src_tokens != mask_idx).unsqueeze(1)
+
+        # 마스크를 생성
+        src_mask = src_mask & torch.transpose(src_mask, 1, 2)
+
+        return src_mask
+
     def forward(
         self,
         obs: torch.Tensor,
@@ -234,6 +251,13 @@ class MaskedLanguageModel(nn.Module):
         obs = obs.permute(1, 0, 2)  # batch sizes 는 고정인 반면, sequeuce는 다양 함 (계산의 효율성)
         # positional encoding
         obs = self.pos_encoder(obs)
+
+        # 마스크의 크기: (batch_size, seq_len)
+        src_mask = self.generate_src_mask(obs, src_mask)
+
+        # 마스크의 차원을 (batch_size, seq_len, 1)로 변경
+        src_mask = src_mask.unsqueeze(-1)
+
         # output = self.transformer_encoder(
         #     obs, src_mask=src_mask, src_key_padding_mask=pad_mask
         # )
