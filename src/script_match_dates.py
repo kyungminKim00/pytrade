@@ -23,12 +23,12 @@ ray.init()
 @ray.remote(num_cpus=4)
 def similarity(idx, src, src_mask, dest, dest_mask):
     a_condition = (src_mask.values == dest_mask.values).all()
-    b_condition = (
-        src.rank(method="min").values == dest.rank(method="min").values
-    ).all()
-    # c_condition = (
-    #     src.rank(method="min", axis=1).values == dest.rank(method="min", axis=1).values
+    # b_condition = (
+    #     src.rank(method="min").values == dest.rank(method="min").values
     # ).all()
+    c_condition = (
+        src.rank(method="min", axis=1).values == dest.rank(method="min", axis=1).values
+    ).all()
 
     # # 오리지널 버젼
     # if a_condition and b_condition and c_condition:
@@ -36,7 +36,7 @@ def similarity(idx, src, src_mask, dest, dest_mask):
     # else:
     #     score = np.inf
 
-    if a_condition and b_condition:
+    if a_condition and c_condition:
         score = np.abs(src.values - dest.values).sum()
     else:
         score = np.inf
