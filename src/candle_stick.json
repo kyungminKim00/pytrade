@@ -1,0 +1,12 @@
+{
+    "raw_file_csv":"./src/local_data/raw/kospi_1d.csv", 
+    "interval":"1d","ticker":"^KS11",
+    "n_candles":3,
+    "fwd":5,
+    "fwd_plot_size":15,
+    "max_samples":100,
+    "debug_plot_dir": "./src/local_data/assets/plot_check/chart"
+}
+
+
+
