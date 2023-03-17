@@ -97,8 +97,12 @@ def Earthmover(y_pred, y_true):
 def KL_divergence(mu, log_var):
     # 시퀀스의 합인거 같은데 이상하네
     var = torch.exp(log_var)
-    kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=1).mean()
-    # kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=0).mean()
+    # kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=1).mean()
+    kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=0).mean()
+    # kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var.exp(), dim=-1).mean(
+    #     dim=0
+    # )
+    # kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var.exp(), dim=-1).mean()
     return kl_loss
 
 
@@ -264,7 +268,7 @@ forward_label = cc.forward_label
 
 # train configuration
 max_seq_length = 120
-batch_size = 64  # 4 -> 64
+batch_size = 4
 # latent size = hidden_size / 4 를 사용하고 있음. Hidden을 너무 적게 유지 할 수 없게 됨 나중에 데이터에 맞게 변경
 hidden_size = 32  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 변경을 적게 가함)
 num_features = data.shape[1] - 1
