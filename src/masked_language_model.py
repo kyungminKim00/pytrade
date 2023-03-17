@@ -242,17 +242,17 @@ class MaskedLanguageModel(nn.Module):
         dec_src_mask: torch.Tensor = None,
         dec_pad_mask: torch.Tensor = None,
     ) -> torch.Tensor:
-        obs = self.embedding(obs)
-        obs = obs.permute(1, 0, 2)  # batch sizes 는 고정인 반면, sequeuce는 다양 함 (계산의 효율성)
+        emd = self.embedding(obs)
+        emd = emd.permute(1, 0, 2)  # batch sizes 는 고정인 반면, sequeuce는 다양 함 (계산의 효율성)
         # positional encoding
-        obs = self.pos_encoder(obs)
+        emd = self.pos_encoder(emd)
 
         # # # # transformer encoder의 구조를 그대로 사용 할 수 없음
         # # # # transform encoder 의 인코더 src_mask는 미래의 값을 볼 것인가 아닌가에 초첨이 맞추어져 있음.
-        # src_pad_mask = self.generate_src_mask(src_mask, pad_mask)
-        # output = self.transformer_encoder(obs, src_key_padding_mask=src_pad_mask)
+        src_pad_mask = self.generate_src_mask(src_mask, pad_mask)
+        output = self.transformer_encoder(emd, src_key_padding_mask=src_pad_mask)
 
-        output = self.transformer_encoder(obs)
+        # output = self.transformer_encoder(emd)
 
         output = nn.AdaptiveAvgPool1d(output.size(0))(output.permute(1, 2, 0))
         output = output.permute(2, 0, 1)

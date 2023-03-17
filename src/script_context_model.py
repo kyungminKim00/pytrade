@@ -249,7 +249,7 @@ cc = CrossCorrelation(
     y_file_name="./src/local_data/raw/y_toys.csv",
     debug=False,
     data_tranform={
-        "n_components": 2,
+        "n_components": 8,
         "method": "UMAP",
     },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
     ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
@@ -264,7 +264,7 @@ forward_label = cc.forward_label
 
 # train configuration
 max_seq_length = 120
-batch_size = 4
+batch_size = 64  # 4 -> 64
 # latent size = hidden_size / 4 를 사용하고 있음. Hidden을 너무 적게 유지 할 수 없게 됨 나중에 데이터에 맞게 변경
 hidden_size = 32  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 변경을 적게 가함)
 num_features = data.shape[1] - 1
