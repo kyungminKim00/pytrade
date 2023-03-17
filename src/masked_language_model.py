@@ -96,14 +96,11 @@ class MaskedLanguageModelDataset(Dataset):
                 for i in range(self.max_seq_length)
             ]
 
-        # 차원 확장 및 Fill
-        src_mask = np.tile(src_mask, (obs.shape[1], 1)).T
-        # pad_mask = np.tile(pad_mask, (obs.shape[1], 1)).T.astype(bool)
-        dec_obs_mask = np.tile(dec_obs_mask, (dec_obs.shape[1], 1)).T
-        # dec_obs_pad_mask = np.tile(dec_obs_pad_mask, (dec_obs.shape[1], 1)).T.astype(
-        #     bool
-        # )
+        # # 차원 확장 및 Fill - 차원 확장 & 속성확장 & Fill 코드 지우지는 말기
+        # src_mask = np.tile(src_mask, (obs.shape[1], 1)).T
+        # dec_obs_mask = np.tile(dec_obs_mask, (dec_obs.shape[1], 1)).T
 
+        # 나중에 코드 지우기
         # masked_obs = [
         #     np.zeros(num_features) if mask[i] else obs[i]
         #     for i in range(self.max_seq_length)
@@ -114,12 +111,14 @@ class MaskedLanguageModelDataset(Dataset):
         src_mask = torch.tensor(src_mask, dtype=torch.bool)
         pad_mask = torch.tensor(pad_mask, dtype=torch.bool)
 
+        # 나중에 코드 지우기
         # mask = torch.tensor(mask, dtype=torch.bool)
         # list to tensor 속도 저하
         # masked_obs = torch.tensor(masked_obs, dtype=torch.float32)
         # masked_obs = torch.tensor(
         #     np.concatenate(masked_obs, axis=0).reshape(obs.shape), dtype=torch.float32
         # )
+
         fwd = torch.tensor(fwd, dtype=torch.float32)
         dec_obs = torch.tensor(dec_obs, dtype=torch.float32)
         dec_obs_mask = torch.tensor(dec_obs_mask, dtype=torch.bool)
@@ -145,7 +144,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x):
-        if self.enable_concept:
+        if self.enable_concept:  # 학습 안됨
             x = (
                 x
                 + self.pe[: x.size(0), :]
@@ -220,22 +219,16 @@ class MaskedLanguageModel(nn.Module):
         z = mean + eps * std
         return z
 
-    def generate_src_mask(src_tokens: torch.Tensor, mask_idx: int) -> torch.Tensor:
-        """
-        입력 토큰에 대한 마스크를 생성하는 함수
-        src_tokens (torch.Tensor): 입력 토큰 (batch_size, seq_len)
-        mask_idx (int): 패딩 토큰의 인덱스
-
-        Returns:
-            torch.Tensor: 마스크 텐서 (batch_size, seq_len, seq_len)
-        """
-        # 패딩 토큰에 해당하는 위치를 0으로 설정
-        src_mask = (src_tokens != mask_idx).unsqueeze(1)
-
-        # 마스크를 생성
-        src_mask = src_mask & torch.transpose(src_mask, 1, 2)
-
-        return src_mask
+    def generate_src_mask(
+        self,
+        src_mask: torch.Tensor,
+        pad_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        # 나중에 코드 지우기
+        # src_mask = src_mask[:, :, -1]
+        src_mask = ~src_mask
+        src_pad_mask = src_mask | pad_mask
+        return src_pad_mask
 
     def forward(
         self,
@@ -252,18 +245,11 @@ class MaskedLanguageModel(nn.Module):
         # positional encoding
         obs = self.pos_encoder(obs)
 
-        # 마스크의 크기: (batch_size, seq_len)
-        src_mask = self.generate_src_mask(obs, src_mask)
+        # transformer encoder의 구조를 그대로 사용 할 수 없음
+        # transform encoder 의 인코더 src_mask는 미래의 값을 볼 것인가 아닌가에 초첨이 맞추어져 있음.
+        src_pad_mask = self.generate_src_mask(src_mask, pad_mask)
 
-        # 마스크의 차원을 (batch_size, seq_len, 1)로 변경
-        src_mask = src_mask.unsqueeze(-1)
-
-        # output = self.transformer_encoder(
-        #     obs, src_mask=src_mask, src_key_padding_mask=pad_mask
-        # )
-        output = self.transformer_encoder(
-            obs, mask=src_mask, src_key_padding_mask=pad_mask
-        )
+        output = self.transformer_encoder(obs, src_key_padding_mask=src_pad_mask)
 
         output = nn.AdaptiveAvgPool1d(output.size(0))(output.permute(1, 2, 0))
         output = output.permute(2, 0, 1)
@@ -292,5 +278,8 @@ class MaskedLanguageModel(nn.Module):
 
         if domain == "context":  # 인코더 학습 및 추론
             output_vector = self.fc(output)
-            output_vector = output_vector.permute(1, 0, 2)
-            return output_vector, mean, log_var
+            return (
+                output_vector.permute(1, 0, 2),
+                mean.permute(1, 0, 2),
+                log_var.permute(1, 0, 2),
+            )
