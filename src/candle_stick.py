@@ -6,7 +6,7 @@ import psutil as ps
 import ray
 
 
-class candle_stick:
+class CandleStick:
     r"""
     Class for calculating similar candle stick patterns.
 
@@ -18,7 +18,7 @@ class candle_stick:
         max_samples: The maximum number of similar dates to return.
 
     Examples:
-        >>> cs = candle_stick(feed_dict=data, bins=3, fwd=5, fwd_plot_size=15, max_samples=100)
+        >>> cs = CandleStick(feed_dict=data, bins=3, fwd=5, fwd_plot_size=15, max_samples=100)
         >>> similar_dates = cs.similar_candle(-1)
         >>> print(f"similar_dates: {similar_dates}")
     """

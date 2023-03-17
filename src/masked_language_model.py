@@ -22,7 +22,9 @@ class MaskedLanguageModelDataset(Dataset):
         self.gen_random_mask = gen_random_mask
         self.padding_torken = padding_torken
         self.forward_label = forward_label
-        self.min_samples = n_period + int(n_period * 0.5)
+        # 수정 된 내용 - 문제 아니지만 우선 롤백 해놓음
+        # self.min_samples = n_period + int(n_period * 0.5)
+        self.min_samples = 60
         self.n_period = n_period
         assert (
             self.min_samples < max_seq_length
@@ -245,11 +247,12 @@ class MaskedLanguageModel(nn.Module):
         # positional encoding
         obs = self.pos_encoder(obs)
 
-        # transformer encoder의 구조를 그대로 사용 할 수 없음
-        # transform encoder 의 인코더 src_mask는 미래의 값을 볼 것인가 아닌가에 초첨이 맞추어져 있음.
-        src_pad_mask = self.generate_src_mask(src_mask, pad_mask)
+        # # # # transformer encoder의 구조를 그대로 사용 할 수 없음
+        # # # # transform encoder 의 인코더 src_mask는 미래의 값을 볼 것인가 아닌가에 초첨이 맞추어져 있음.
+        # src_pad_mask = self.generate_src_mask(src_mask, pad_mask)
+        # output = self.transformer_encoder(obs, src_key_padding_mask=src_pad_mask)
 
-        output = self.transformer_encoder(obs, src_key_padding_mask=src_pad_mask)
+        output = self.transformer_encoder(obs)
 
         output = nn.AdaptiveAvgPool1d(output.size(0))(output.permute(1, 2, 0))
         output = output.permute(2, 0, 1)
@@ -280,6 +283,6 @@ class MaskedLanguageModel(nn.Module):
             output_vector = self.fc(output)
             return (
                 output_vector.permute(1, 0, 2),
-                mean.permute(1, 0, 2),
-                log_var.permute(1, 0, 2),
+                mean,
+                log_var,
             )

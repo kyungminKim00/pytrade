@@ -124,10 +124,14 @@ class CrossCorrelation:
         )
 
         # summary statistics
+        nums_ms = (
+            self.observatoins_merge_idx.shape[0]
+            - self.observatoins_merge_idx[:, -1].sum()
+        )
         print_c(
             f"observatoins_merge_idx shape: {self.observatoins_merge_idx.shape} \
-            nums of masked samples: {self.observatoins_merge_idx[:, -1].sum()} \
-            ratio of masked samples: {self.observatoins_merge_idx[:, -1].sum() / self.observatoins_merge_idx.shape[0]}"
+            nums of masked samples: {nums_ms} \
+            ratio of masked samples: {nums_ms / self.observatoins_merge_idx.shape[0]}"
         )
 
         # validation data & data visualization

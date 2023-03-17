@@ -7,7 +7,7 @@ import ray
 import yfinance as yf
 from plotly.subplots import make_subplots
 
-from candle_stick import candle_stick
+from candle_stick import CandleStick
 
 print("Ray initialized already" if ray.is_initialized() else ray.init())
 
@@ -175,7 +175,7 @@ if __name__ == "__main__":
     debug = True
     for n_candles in [3, 4, 5]:
         # 파라미터 설정
-        cs = candle_stick(
+        cs = CandleStick(
             feed_dict=src_data,
             bins=n_candles,
             fwd=env_dict["fwd"],
