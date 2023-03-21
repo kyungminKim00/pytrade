@@ -83,27 +83,29 @@ def plot_animate(loss_type):
 
 def Earthmover(y_pred, y_true):
     return torch.mean(
-        torch.square(
-            torch.mean(
-                torch.square(
-                    torch.cumsum(y_true, dim=-1) - torch.cumsum(y_pred, dim=-1)
-                ),
-                dim=-1,
-            )
-        )
+        torch.square(torch.cumsum(y_true, dim=-1) - torch.cumsum(y_pred, dim=-1))
     )
 
 
-def KL_divergence(mu, log_var):
-    # 시퀀스의 합인거 같은데 이상하네
-    var = torch.exp(log_var)
-    # kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=1).mean()
-    kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=0).mean()
-    # kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var.exp(), dim=-1).mean(
-    #     dim=0
-    # )
-    # kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var.exp(), dim=-1).mean()
-    return kl_loss
+# def KL_divergence(mu, log_var):
+#     # 시퀀스의 합인거 같은데 이상하네, 배치단위로 합을 취하고 평균을 구할때 동작 함
+#     # 정규분포를 가정하더라도 이는 시퀀스 별 분포가 매우 다르기 때문에 발생하는 현상으로 생각 됨
+#     var = torch.exp(log_var)
+#     kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - var, dim=1).mean()
+#     return kl_loss
+
+
+def KL_divergence(z, mu, log_var):
+    var = torch.exp(0.5 * log_var)
+    p = torch.distributions.Normal(torch.zeros_like(mu), torch.ones_like(var))
+    q = torch.distributions.Normal(mu, var)
+
+    log_qzx = q.log_prob(z)
+    log_pz = p.log_prob(z)
+
+    kl_loss = log_qzx - log_pz
+    kl_loss = kl_loss.sum(dim=1)
+    return kl_loss.mean()
 
 
 def cal_density(data):
@@ -112,13 +114,6 @@ def cal_density(data):
     return (
         torch.sqrt(torch.sum(diff**2, axis=-1)).sum(axis=0)[:, None] / data.shape[0]
     )
-
-
-# adam 에 정규화 적용 시 - "Decoupled weight decay regularization" (2017)
-def update_weights(model, optimizer, lr, weight_decay):
-    for name, param in model.named_parameters():
-        if "weight" in name:
-            param.data.add_(-weight_decay * lr * param.data)
 
 
 def train(
@@ -134,8 +129,7 @@ def train(
     domain="context",
     weight_vars=None,
 ):
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    # optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     criterion = loss_dict[loss_type]
     best_val_density = float("inf")
@@ -144,19 +138,20 @@ def train(
         model.train()
         train_loss = 0
         tmp_data, plot_data_train, plot_data_val = [], [], []
-        for obs, src_mask, pad_mask, _, _, _, _ in train_dataloader:
-            src_mask, pad_mask, obs = (
+        for obs, masked_obs, src_mask, pad_mask, _, _, _, _ in train_dataloader:
+            obs, src_mask, pad_mask, masked_obs = (
+                obs.to(device),
                 src_mask.to(device),
                 pad_mask.to(device),
-                obs.to(device),
+                masked_obs.to(device),
             )
             contain_blank = ~src_mask
             if contain_blank.sum() > 0:
-                output, mean, log_var = model(obs, src_mask, pad_mask, domain)
+                output, mean, log_var, z = model(masked_obs, src_mask, pad_mask, domain)
                 # Calculate loss only for masked tokens
                 loss = criterion(
                     output[contain_blank], obs[contain_blank]
-                ) + KL_divergence(mean, log_var)
+                ) + KL_divergence(z, mean, log_var)
 
                 optimizer.zero_grad()
                 # loss.backward(retain_graph=True)
@@ -180,18 +175,21 @@ def train(
         tmp_data = []
         density_output, density_obs = [], []
         with torch.no_grad():
-            for obs, src_mask, pad_mask, _, _, _, _ in val_dataloader:
-                src_mask, pad_mask, obs = (
+            for obs, masked_obs, src_mask, pad_mask, _, _, _, _ in val_dataloader:
+                obs, src_mask, pad_mask, masked_obs = (
+                    obs.to(device),
                     src_mask.to(device),
                     pad_mask.to(device),
-                    obs.to(device),
+                    masked_obs.to(device),
                 )
                 contain_blank = ~src_mask
                 if contain_blank.sum() > 0:
-                    output, mean, log_var = model(obs, src_mask, pad_mask, domain)
+                    output, mean, log_var, z = model(
+                        masked_obs, src_mask, pad_mask, domain
+                    )
                     loss = criterion(
                         output[contain_blank], obs[contain_blank]
-                    ) + KL_divergence(mean, log_var)
+                    ) + KL_divergence(z, mean, log_var)
                     val_loss += loss.item()
 
                     dist += torch.abs(output[contain_blank] - obs[contain_blank]).sum()
@@ -238,28 +236,28 @@ def train(
 
 
 loss_dict = {
-    "SmoothL1Loss": nn.SmoothL1Loss(),
+    # "SmoothL1Loss": nn.SmoothL1Loss(),
     "mse": nn.MSELoss(),
-    "Earthmover": Earthmover,
-    "L1Loss": nn.L1Loss(),
+    # "Earthmover": Earthmover,
+    # "L1Loss": nn.L1Loss(),
 }
 
 tv_ratio = 0.8
 # 특징 추출
-cc = CrossCorrelation(
-    mv_bin=20,  # bin size for moving variance
-    correation_bin=60,  # bin size to calculate cross correlation
-    x_file_name="./src/local_data/raw/x_toys.csv",
-    y_file_name="./src/local_data/raw/y_toys.csv",
-    debug=False,
-    data_tranform={
-        "n_components": 8,
-        "method": "UMAP",
-    },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
-    ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
-    alpha=1.5,
-)
-dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
+# cc = CrossCorrelation(
+#     mv_bin=20,  # bin size for moving variance
+#     correation_bin=60,  # bin size to calculate cross correlation
+#     x_file_name="./src/local_data/raw/x_toys.csv",
+#     y_file_name="./src/local_data/raw/y_toys.csv",
+#     debug=False,
+#     data_tranform={
+#         "n_components": 8,
+#         "method": "UMAP",
+#     },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
+#     ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
+#     alpha=1.5,
+# )
+# dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
 cc = load("./src/local_data/assets/crosscorrelation.pkl")
 data = cc.observatoins_merge_idx
 weight_vars = cc.weight_variables
@@ -272,7 +270,7 @@ batch_size = 4
 # latent size = hidden_size / 4 를 사용하고 있음. Hidden을 너무 적게 유지 할 수 없게 됨 나중에 데이터에 맞게 변경
 hidden_size = 32  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 변경을 적게 가함)
 num_features = data.shape[1] - 1
-epochs = 50  # 150
+epochs = 100  # 150
 step_size = 4e-5
 enable_concept = False  # Fix 실험값 변경하지 말기
 print(f"num_features {num_features}")
