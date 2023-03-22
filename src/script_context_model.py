@@ -1,3 +1,4 @@
+import json
 import os
 
 import imageio
@@ -10,16 +11,11 @@ import torch.nn.functional as F
 import torch.optim as optim
 from joblib import dump, load
 from plotly.subplots import make_subplots
-from torch.distributions import MultivariateNormal
 from torch.utils.data import DataLoader
 
 from cross_correlation import CrossCorrelation
 from masked_language_model import MaskedLanguageModel, MaskedLanguageModelDataset
-from opm import AdamW
 from util import print_c, remove_files
-
-print("Ray initialized already" if ray.is_initialized() else ray.init())
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def to_result(res, label=0):
@@ -104,7 +100,7 @@ def KL_divergence(z, mu, log_var):
     log_pz = p.log_prob(z)
 
     kl_loss = log_qzx - log_pz
-    kl_loss = kl_loss.sum(dim=1)
+    kl_loss = kl_loss.sum(dim=-1)
     return kl_loss.mean()
 
 
@@ -154,12 +150,9 @@ def train(
                 ) + KL_divergence(z, mean, log_var)
 
                 optimizer.zero_grad()
-                # loss.backward(retain_graph=True)
-                # loss2.backward()
                 loss.backward()
                 optimizer.step()
 
-                # train_loss += loss.item() + loss2.item()
                 train_loss += loss.item()
 
                 if plot_train:
@@ -225,112 +218,130 @@ def train(
         ) as log:
             print(sys_out_print, file=log)
 
-        # Save best model
-        if density < best_val_density:
-            best_val_density = density
-            remove_files("./src/local_data/assets", loss_type, density)
-            torch.save(
-                model.state_dict(),
-                f"./src/local_data/assets/{loss_type}_{epoch}_{density:.4f}_context_model.pt",
-            )
+        # # Save best model
+        # if density < best_val_density:
+        #     best_val_density = density
+        #     remove_files("./src/local_data/assets", loss_type, density)
+        #     torch.save(
+        #         model.state_dict(),
+        #         f"./src/local_data/assets/{loss_type}_{epoch}_{density:.4f}_context_model.pt",
+        #     )
+        torch.save(
+            model.state_dict(),
+            f"./src/local_data/assets/{loss_type}_{epoch}_{density:.4f}_context_model.pt",
+        )
 
 
-loss_dict = {
-    # "SmoothL1Loss": nn.SmoothL1Loss(),
-    "mse": nn.MSELoss(),
-    # "Earthmover": Earthmover,
-    # "L1Loss": nn.L1Loss(),
-}
+if __name__ == "__main__":
+    print("Ray initialized already" if ray.is_initialized() else ray.init())
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-tv_ratio = 0.8
-# 특징 추출
-# cc = CrossCorrelation(
-#     mv_bin=20,  # bin size for moving variance
-#     correation_bin=60,  # bin size to calculate cross correlation
-#     x_file_name="./src/local_data/raw/x_toys.csv",
-#     y_file_name="./src/local_data/raw/y_toys.csv",
-#     debug=False,
-#     data_tranform={
-#         "n_components": 8,
-#         "method": "UMAP",
-#     },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
-#     ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
-#     alpha=1.5,
-# )
-# dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
-cc = load("./src/local_data/assets/crosscorrelation.pkl")
-data = cc.observatoins_merge_idx
-weight_vars = cc.weight_variables
-padding_torken = cc.padding_torken
-forward_label = cc.forward_label
+    # 모듈 정보
+    with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
+        env_dict = json.load(fp)
 
-# train configuration
-max_seq_length = 120
-batch_size = 4
-# latent size = hidden_size / 4 를 사용하고 있음. Hidden을 너무 적게 유지 할 수 없게 됨 나중에 데이터에 맞게 변경
-hidden_size = 32  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 변경을 적게 가함)
-num_features = data.shape[1] - 1
-epochs = 100  # 150
-step_size = 4e-5
-enable_concept = False  # Fix 실험값 변경하지 말기
-print(f"num_features {num_features}")
+    loss_dict = {
+        # "SmoothL1Loss": nn.SmoothL1Loss(),
+        "mse": nn.MSELoss(),
+        # "Earthmover": Earthmover,
+        # "L1Loss": nn.L1Loss(),
+    }
 
-# Split data into train and validation sets
-offset = int(len(data) * tv_ratio)
-dist = int((len(data) - offset) * 0.5)
-train_observations, train_label = data[:offset], forward_label[:offset]
-val_observations, val_label = (
-    data[offset : offset + dist],
-    forward_label[offset : offset + dist],
-)
-test_observations, test_label = data[offset + dist :], forward_label[offset + dist :]
+    tv_ratio = env_dict["tv_ratio"]
+    # 특징 추출
+    cc = CrossCorrelation(
+        mv_bin=20,  # bin size for moving variance
+        correation_bin=60,  # bin size to calculate cross correlation
+        x_file_name="./src/local_data/raw/x_toys.csv",
+        y_file_name="./src/local_data/raw/y_toys.csv",
+        debug=False,
+        data_tranform=None,  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
+        # data_tranform={
+        #     "n_components": 8,
+        #     "method": "UMAP",
+        # },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
+        ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
+        alpha=1.5,
+    )
+    dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
+    cc = load("./src/local_data/assets/crosscorrelation.pkl")
+    data = cc.observatoins_merge_idx
+    weight_vars = cc.weight_variables
+    padding_torken = cc.padding_torken
+    forward_label = cc.forward_label
 
-# 데이터 크기 출력
-for k, it in [
-    ("Train", train_observations),
-    ("Val", val_observations),
-    ("Test", test_observations),
-]:
-    print(f"{k}: {len(it)}")
+    # train configuration
+    max_seq_length = env_dict["max_seq_length"]
+    batch_size = env_dict["batch_size"]
+    # latent size = hidden_size / 4 를 사용하고 있음. Hidden을 너무 적게 유지 할 수 없게 됨 나중에 데이터에 맞게 변경
+    hidden_size = env_dict[
+        "hidden_size"
+    ]  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 변경을 적게 가함)
+    step_size = env_dict["step_size"]
+    enable_concept = env_dict["enable_concept"]  # Fix 실험값 변경하지 말기
 
+    num_features = data.shape[1] - 1
+    epochs = 100  # 150
+    print(f"num_features {num_features}")
 
-# context model training
-for k, v in loss_dict.items():
-    train(
-        model=MaskedLanguageModel(
-            hidden_size, max_seq_length, num_features, enable_concept
-        ).to(device),
-        train_dataloader=DataLoader(
-            MaskedLanguageModelDataset(
-                train_observations,
-                max_seq_length,
-                padding_torken=padding_torken,
-                gen_random_mask=True,  # Fix
-                forward_label=train_label,
-            ),
-            batch_size=batch_size,
-            shuffle=True,
-        ),
-        val_dataloader=DataLoader(
-            MaskedLanguageModelDataset(
-                val_observations,
-                max_seq_length,
-                padding_torken=padding_torken,
-                gen_random_mask=False,  # Fix
-                forward_label=val_label,
-            ),
-            batch_size=batch_size,
-            shuffle=False,
-        ),
-        num_epochs=epochs,
-        lr=step_size,
-        weight_decay=1e-4,
-        plot_train=True,
-        plot_val=True,
-        loss_type=k,
-        domain="context",
-        weight_vars=weight_vars,
+    # Split data into train and validation sets
+    offset = int(len(data) * tv_ratio)
+    dist = int((len(data) - offset) * 0.5)
+    train_observations, train_label = data[:offset], forward_label[:offset]
+    val_observations, val_label = (
+        data[offset : offset + dist],
+        forward_label[offset : offset + dist],
+    )
+    test_observations, test_label = (
+        data[offset + dist :],
+        forward_label[offset + dist :],
     )
 
-    # plot result
-    plot_animate(loss_type=k)
+    # 데이터 크기 출력
+    for k, it in [
+        ("Train", train_observations),
+        ("Val", val_observations),
+        ("Test", test_observations),
+    ]:
+        print(f"{k}: {len(it)}")
+
+    # context model training
+    for k, v in loss_dict.items():
+        train(
+            model=MaskedLanguageModel(
+                hidden_size, max_seq_length, num_features, enable_concept
+            ).to(device),
+            train_dataloader=DataLoader(
+                MaskedLanguageModelDataset(
+                    train_observations,
+                    max_seq_length,
+                    padding_torken=padding_torken,
+                    gen_random_mask=True,  # Fix
+                    forward_label=train_label,
+                ),
+                batch_size=batch_size,
+                shuffle=True,
+            ),
+            val_dataloader=DataLoader(
+                MaskedLanguageModelDataset(
+                    val_observations,
+                    max_seq_length,
+                    padding_torken=padding_torken,
+                    gen_random_mask=False,  # Fix
+                    forward_label=val_label,
+                ),
+                batch_size=batch_size,
+                shuffle=False,
+            ),
+            num_epochs=epochs,
+            lr=step_size,
+            weight_decay=1e-4,
+            plot_train=True,
+            plot_val=True,
+            loss_type=k,
+            domain="context",
+            weight_vars=weight_vars,
+        )
+
+        # plot result
+        plot_animate(loss_type=k)

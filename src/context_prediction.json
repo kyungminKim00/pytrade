@@ -1,0 +1,8 @@
+{
+    "tv_ratio": 0.8, 
+    "max_seq_length" : 120,
+    "batch_size" : 4,
+    "hidden_size" : 256,
+    "step_size" : 4e-5,
+    "enable_concept": 0
+}

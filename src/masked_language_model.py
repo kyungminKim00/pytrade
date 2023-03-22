@@ -15,6 +15,7 @@ class MaskedLanguageModelDataset(Dataset):
         gen_random_mask: bool = True,
         forward_label: np.array = None,
         n_period: int = 60,
+        mode: str = "encode",
     ):
         self.observations = observations[:, :-1]
         self.predefined_mask = observations[:, -1].astype(int)
@@ -24,7 +25,7 @@ class MaskedLanguageModelDataset(Dataset):
         self.forward_label = forward_label
         # 수정 된 내용 - 03.20
         self.min_samples = n_period + int(n_period * 0.5)
-        # self.min_samples = 60
+        self.mode = mode
         self.n_period = n_period
         assert (
             self.min_samples < max_seq_length
@@ -34,13 +35,15 @@ class MaskedLanguageModelDataset(Dataset):
         return len(self.observations) - self.max_seq_length
 
     def __getitem__(self, idx):
-        padding_torken = self.padding_torken
+        idx = idx + self.max_seq_length
 
+        padding_torken = self.padding_torken
         rnd_seq = np.random.randint(self.min_samples, self.max_seq_length)
-        obs = self.observations[idx : idx + rnd_seq]
-        predefined_mask = self.predefined_mask[idx : idx + rnd_seq]
-        fwd = self.forward_label[idx : idx + rnd_seq]
-        dec_obs = self.observations[idx : idx + rnd_seq]
+
+        obs = self.observations[idx - rnd_seq : idx]
+        predefined_mask = self.predefined_mask[idx - rnd_seq : idx]
+        fwd = self.forward_label[idx - rnd_seq : idx]
+        dec_obs = self.observations[idx - rnd_seq : idx]
 
         last_fwd = fwd[-1]
         fwd = fwd[: -self.n_period]
@@ -55,8 +58,7 @@ class MaskedLanguageModelDataset(Dataset):
         fwd = np.concatenate(
             [
                 fwd,
-                padding_torken
-                * np.ones([self.max_seq_length - fwd.shape[0], fwd.shape[1]]),
+                np.inf * np.ones([self.max_seq_length - fwd.shape[0], fwd.shape[1]]),
             ],
             axis=0,
         )
@@ -87,9 +89,13 @@ class MaskedLanguageModelDataset(Dataset):
         num_predefined_mask = len(predefined_mask) - predefined_mask.sum()
         # mask = predefined_mask.tolist() + [0] * padding_length
 
-        src_mask = (
-            predefined_mask.tolist() + [1] * padding_length
-        )  # padding values 가 이미 설정 되어 있으므로 1
+        if self.mode == "encode":
+            src_mask = (
+                predefined_mask.tolist() + [1] * padding_length
+            )  # padding values 가 이미 설정 되어 있으므로 1
+        else:
+            src_mask = [1] * len(predefined_mask) + [1] * padding_length
+            assert not self.gen_random_mask, "src_mask contains 1 only on a decode mode"
         pad_mask = [0] * len(predefined_mask) + [1] * padding_length
 
         # add random mask to predefined_mask
@@ -142,9 +148,19 @@ class MaskedLanguageModelDataset(Dataset):
         dec_obs_pad_mask = torch.tensor(dec_obs_pad_mask, dtype=torch.bool)
 
         # return masked_obs, mask, obs, fwd, dec_obs
+        if self.mode == "encode":
+            return (
+                obs,
+                masked_obs,
+                src_mask,
+                pad_mask,
+                fwd,
+                dec_obs,
+                dec_obs_mask,
+                dec_obs_pad_mask,
+            )
         return (
             obs,
-            masked_obs,
             src_mask,
             pad_mask,
             fwd,
@@ -225,11 +241,19 @@ class MaskedLanguageModel(nn.Module):
 
         self.fc_variance = nn.Linear(hidden_size, latent_size)
         self.fc_reparameterize = nn.Linear(latent_size, hidden_size)
-
         self.fc = nn.Linear(hidden_size, num_features)
+
+        self.fc_up_brg = nn.Linear(hidden_size, hidden_size)
         self.fc_up = nn.Linear(hidden_size, 1)
+        self.fc_down_brg = nn.Linear(hidden_size, hidden_size)
         self.fc_down = nn.Linear(hidden_size, 1)
-        self.fc_std = nn.Linear(hidden_size, 1)
+
+        self.up_down_attn = nn.MultiheadAttention(
+            hidden_size * 2, num_heads=2, dropout=0.1, batch_first=True
+        )
+        self.fc_up_down = nn.Linear(hidden_size * 2, 1)
+
+        self.fc_std = nn.Linear(hidden_size * 2, 1)
         self.pos_encoder = PositionalEncoding(
             hidden_size, max_seq_length, enable_concept
         )
@@ -295,20 +319,36 @@ class MaskedLanguageModel(nn.Module):
             decoder_output = self.transformer_decoder(
                 dec_obs,
                 output,
-                tgt_mask=dec_src_mask,
                 tgt_key_padding_mask=dec_pad_mask,
             )
             decoder_output = decoder_output.permute(1, 0, 2)
 
-            output_vector_up = self.fc_up(decoder_output).permute(1, 0, 2)
-            output_vector_down = self.fc_down(decoder_output).permute(1, 0, 2)
-            output_vector_std = self.fc_std(decoder_output).permute(1, 0, 2)
-            return output_vector_up, output_vector_down, output_vector_std
+            # output_vector_up = self.fc_up(decoder_output)
+            # output_vector_down = self.fc_down(decoder_output)
+            # output_vector_std = self.fc_std(decoder_output)
+
+            fc_up_brg = self.fc_up_brg(decoder_output)
+            output_vector_up = self.fc_up(fc_up_brg)
+            fc_down_brg = self.fc_down_brg(decoder_output)
+            output_vector_down = self.fc_down(fc_up_brg)
+
+            cc = torch.concat([fc_up_brg, fc_down_brg], dim=-1)
+            up_down_attn, _ = self.up_down_attn(cc, cc, cc)
+
+            output_vector_up_down = self.fc_up_down(up_down_attn)
+            output_vector_std = self.fc_std(up_down_attn)
+
+            return (
+                output_vector_up,
+                output_vector_down,
+                output_vector_std,
+                output_vector_up_down,
+            )
 
         if domain == "context":  # 인코더 학습 및 추론
-            output_vector = self.fc(output)
+            output_vector = self.fc(output.permute(1, 0, 2))
             return (
-                output_vector.permute(1, 0, 2),
+                output_vector,
                 mean,
                 log_var,
                 z,
