@@ -1,3 +1,5 @@
+import json
+
 import bottleneck as bn
 import numpy as np
 import pandas as pd
@@ -7,6 +9,10 @@ import umap
 from sklearn.decomposition import PCA
 
 from util import print_c
+
+# 모듈 정보
+with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
+    env_dict = json.load(fp)
 
 
 @ray.remote(num_cpus=4)
@@ -41,7 +47,7 @@ class CrossCorrelation:
         # missing values
         self.X = self.fill_data(x_file_name)
         self.Y = self.fill_data(y_file_name)
-        self.var_desc = pd.read_csv("./src/local_data/raw/var_description.csv")
+        self.var_desc = pd.read_csv(f"{env_dict['raw_dir']}/var_description.csv")
 
         # common datetime
         common_df = self.X.join(self.Y, how="inner")
@@ -143,7 +149,7 @@ class CrossCorrelation:
             for col in common_df.columns:
                 fig = px.line(common_df, x=common_df.index, y=col)
                 fig.write_image(
-                    f"./src/local_data/assets/plot_check/cross_correlation_{col}.png"
+                    f"{env_dict['plot_check_dir']}/cross_correlation_{col}.png"
                 )
             self.plot_histogram()
             self.plot_pca()
@@ -209,7 +215,7 @@ class CrossCorrelation:
             data = self.observatoins[:, idx]
             fig = px.histogram(data, title=f"{self.x_idx2col[idx]}")
             fig.write_image(
-                f"./src/local_data/assets/plot_check/histogram_{self.x_idx2col[idx]}.png"
+                f"{env_dict['plot_check_dir']}/histogram_{self.x_idx2col[idx]}.png"
             )
 
     def get_forward_returns(self, Y, n_periods=60):
@@ -261,4 +267,4 @@ class CrossCorrelation:
                 color=self.forward_returns[target_idx],
                 title=f"label std: {alpha}",
             )
-            fig.write_image(f"./src/local_data/assets/plot_check/pca_2D_{alpha}.png")
+            fig.write_image(f"{env_dict['plot_check_dir']}/pca_2D_{alpha}.png")

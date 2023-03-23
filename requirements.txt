@@ -27,8 +27,15 @@ yfinance
 black
 pyyaml
 plotly
+plotly-express
+kaleido
 click
 schedule
 ipykernel
 modin[ray]==0.15.3
-kaleido
+scikit-image
+lime
+shap
+captum
+xgboost
+catboost

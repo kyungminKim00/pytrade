@@ -2,7 +2,17 @@
     "tv_ratio": 0.8, 
     "max_seq_length" : 120,
     "batch_size" : 4,
-    "hidden_size" : 256,
+    "hidden_size" : 32,
     "step_size" : 4e-5,
-    "enable_concept": 0
+    "enable_concept": 0,
+    "val_infer_ratio": 0.5,
+    "n_period": 60,
+    "context_epochs": 100,
+    "prediction_epochs": 1500,
+    "n_components": 8,
+    "method": "UMAP",
+    "plot_check_dir": "./src/local_data/assets/plot_check",
+    "assets_dir": "./src/local_data/assets",
+    "raw_dir": "./src/local_data/raw"
+    
 }

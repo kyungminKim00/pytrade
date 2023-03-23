@@ -19,6 +19,10 @@ from torch.utils.data import DataLoader
 from masked_language_model import MaskedLanguageModel, MaskedLanguageModelDataset
 from util import print_c, remove_files
 
+# 모듈 정보
+with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
+    env_dict = json.load(fp)
+
 
 def gather_data(
     predict_up, predict_down, predict_std, predict_up_down, real_rtn, real_std
@@ -49,7 +53,9 @@ def plot_res(plot_data_train, plot_data_val, plot_data_infer, epoch, loss_type):
     """plot_data_train"""
     y = np.where(plot_data_train["real_rtn"] > 0, 1, 0)
     y_hat = np.where(plot_data_train["predict_up_down"] > 0, 1, 0)
-    print(f"[train] Accuracy:{accuracy_score(y, y_hat)}")
+    print(
+        f"[train] Accuracy:{accuracy_score(y, y_hat):.3} MAE:{np.mean(np.abs(y - y_hat)):.3}"
+    )
 
     """plot_data_val
     """
@@ -62,11 +68,13 @@ def plot_res(plot_data_train, plot_data_val, plot_data_infer, epoch, loss_type):
 
         # # 데이터 Drop
         # plot_data.to_csv(
-        #     f"./src/local_data/assets/plot_check/{loss_type}/prediction/{val_or_infer}_{loss_type}_{epoch}.csv"
+        #     f"{env_dict['plot_check_dir']}/{loss_type}/prediction/{val_or_infer}_{loss_type}_{epoch}.csv"
         # )
 
         accuracy = accuracy_score(y, y_hat)
-        print(f"[{val_or_infer}] Accuracy:{accuracy:.3}")
+        print(
+            f"[{val_or_infer}] Accuracy:{accuracy:.3} MAE:{np.mean(np.abs(y - y_hat)):.3}"
+        )
 
         fig = {}
         colors = px.colors.qualitative.T10  # T10 색상 팔레트 사용
@@ -100,12 +108,12 @@ def plot_res(plot_data_train, plot_data_val, plot_data_infer, epoch, loss_type):
         # Update the subplot layout
         fig_sub.update_layout(title=f"{val_or_infer} accuracy_score: {accuracy:.3}")
         fig_sub.write_image(
-            f"./src/local_data/assets/plot_check/{loss_type}/prediction/{val_or_infer}_{loss_type}_{epoch}_{accuracy:.3}.png"
+            f"{env_dict['plot_check_dir']}/{loss_type}/prediction/{val_or_infer}_{loss_type}_{epoch}_{accuracy:.3}.png"
         )
 
 
 def plot_animate(loss_type):
-    base_dir = "./src/local_data/assets/plot_check"
+    base_dir = env_dict["plot_check_dir"]
     files = []
     for img_fn in os.listdir(base_dir):
         if f"cc_2D_{loss_type}" in img_fn:
@@ -424,14 +432,18 @@ def train(
                 real_std,
             )
         tot_loss /= len(val_dataloader)
-        # Save best model
-        if tot_loss < best_val:
-            remove_files("./src/local_data/assets", loss_type, best_val)
-            best_val = tot_loss
-            torch.save(
-                model.state_dict(),
-                f"./src/local_data/assets/{loss_type}_{epoch}_{best_val:.4f}_context_model.pt",
-            )
+        # # Save best model
+        # if tot_loss < best_val:
+        #     remove_files(env_dict["assets_dir"], loss_type, best_val)
+        #     best_val = tot_loss
+        #     torch.save(
+        #         model.state_dict(),
+        #         f"{env_dict['assets_dir']}/{loss_type}_{epoch}_{best_val:.4f}_prediction_model.pt",
+        #     )
+        torch.save(
+            model.state_dict(),
+            f"{env_dict['assets_dir']}/{loss_type}_{epoch}_{best_val:.4f}_prediction_model.pt",
+        )
         # terminal process - 결과데이터 취합
         if plot_val:
             plot_data_val = gather_data(
@@ -492,7 +504,7 @@ def train(
         sys_out_print = f"[{loss_type}] Epoch {epoch}: train loss {train_loss*10000:.4f} | val loss {tot_loss*10000:.4f}"
         print(sys_out_print)
         with open(
-            f"./src/local_data/assets/plot_check/{loss_type}/prediction_log.txt",
+            f"{env_dict['plot_check_dir']}/{loss_type}/prediction_log.txt",
             "a",
             encoding="utf-8",
         ) as log:
@@ -503,10 +515,6 @@ if __name__ == "__main__":
     print("Ray initialized already" if ray.is_initialized() else ray.init())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 모듈 정보
-    with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
-        env_dict = json.load(fp)
-
     loss_dict = {
         "SmoothL1Loss": nn.SmoothL1Loss(),
         "mse": nn.MSELoss(),
@@ -516,7 +524,7 @@ if __name__ == "__main__":
     tv_ratio = env_dict["tv_ratio"]
 
     print_c("Load dataset")
-    cc = load("./src/local_data/assets/crosscorrelation.pkl")
+    cc = load(f"{env_dict['assets_dir']}/crosscorrelation.pkl")
     data = cc.observatoins_merge_idx
     w_vars = cc.weight_variables
     padding_torken = cc.padding_torken
@@ -529,16 +537,16 @@ if __name__ == "__main__":
     hidden_size = env_dict[
         "hidden_size"
     ]  # 1:2 or 1:4 (표현력에 강화), 2:1, 1:1 (특징추출을 변경을 적게 가함)
-    step_size = env_dict["step_size"]
+    step_size = env_dict["step_size"]  # 03.23 58 에폭까지 변화가 없음. lr 줄여봄 (변화없음) -> lr 키워봄
     enable_concept = env_dict["enable_concept"]  # Fix 실험값 변경하지 말기
 
     num_features = data.shape[1] - 1
-    epochs = 1500
+    epochs = env_dict["prediction_epochs"]
     print(f"num_features {num_features}")
 
     # Split data into train and validation sets
     offset = int(len(data) * tv_ratio)
-    dist = int((len(data) - offset) * 0.5)
+    dist = int((len(data) - offset) * env_dict["val_infer_ratio"])
     train_observations, train_label = data[:offset], forward_label[:offset]
     val_observations, val_label = (
         data[offset : offset + dist],
@@ -561,9 +569,9 @@ if __name__ == "__main__":
     model_files = []
     for key, v in loss_dict.items():
         torket = f"{key}_"
-        for fn in os.listdir("./src/local_data/assets"):
+        for fn in os.listdir(env_dict["assets_dir"]):
             if torket in fn:
-                model_files.append(f"./src/local_data/assets/{fn}")
+                model_files.append(f"{env_dict['assets_dir']}/{fn}")
     model_files = list(set(model_files))
 
     # prediciton model 은 mse 고정
@@ -600,6 +608,7 @@ if __name__ == "__main__":
                     padding_torken=padding_torken,
                     gen_random_mask=False,  # Fix
                     forward_label=train_label,
+                    n_period=env_dict["n_period"],
                     mode="decode",
                 ),
                 batch_size=batch_size,
@@ -612,6 +621,7 @@ if __name__ == "__main__":
                     padding_torken=padding_torken,
                     gen_random_mask=False,  # Fix
                     forward_label=val_label,
+                    n_period=env_dict["n_period"],
                     mode="decode",
                 ),
                 batch_size=1,

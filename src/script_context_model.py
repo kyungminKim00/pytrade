@@ -17,6 +17,10 @@ from cross_correlation import CrossCorrelation
 from masked_language_model import MaskedLanguageModel, MaskedLanguageModelDataset
 from util import print_c, remove_files
 
+# 모듈 정보
+with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
+    env_dict = json.load(fp)
+
 
 def to_result(res, label=0):
     src = res.detach().cpu().numpy()
@@ -55,12 +59,12 @@ def plot_res(plot_data_train, plot_data_val, epoch, loss_type):
     )
 
     fig_sub.write_image(
-        f"./src/local_data/assets/plot_check/{loss_type}/cc_2D_{loss_type}_{epoch}.png"
+        f"{env_dict['plot_check_dir']}/{loss_type}/cc_2D_{loss_type}_{epoch}.png"
     )
 
 
 def plot_animate(loss_type):
-    base_dir = "./src/local_data/assets/plot_check"
+    base_dir = env_dict["plot_check_dir"]
     files = []
     for fn in os.listdir(base_dir):
         if f"cc_2D_{loss_type}" in fn:
@@ -104,14 +108,6 @@ def KL_divergence(z, mu, log_var):
     return kl_loss.mean()
 
 
-def cal_density(data):
-    # 2 components 만 활용 - 시각화 해석에 용이
-    diff = data.unsqueeze(1)[:, :, :2] - data.unsqueeze(0)[:, :, :2]
-    return (
-        torch.sqrt(torch.sum(diff**2, axis=-1)).sum(axis=0)[:, None] / data.shape[0]
-    )
-
-
 def train(
     model,
     train_dataloader,
@@ -128,7 +124,7 @@ def train(
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     criterion = loss_dict[loss_type]
-    best_val_density = float("inf")
+    best_val = float("inf")
 
     for epoch in range(num_epochs):
         model.train()
@@ -166,7 +162,6 @@ def train(
         val_loss = 0
         dist = 0
         tmp_data = []
-        density_output, density_obs = [], []
         with torch.no_grad():
             for obs, masked_obs, src_mask, pad_mask, _, _, _, _ in val_dataloader:
                 obs, src_mask, pad_mask, masked_obs = (
@@ -186,8 +181,6 @@ def train(
                     val_loss += loss.item()
 
                     dist += torch.abs(output[contain_blank] - obs[contain_blank]).sum()
-                    density_output.append(output[contain_blank])
-                    density_obs.append(obs[contain_blank])
 
                     if plot_val:
                         tmp_data.append(to_result(output[contain_blank], label=1))
@@ -195,50 +188,37 @@ def train(
         val_loss /= len(val_dataloader)
         dist /= len(val_dataloader)
 
-        density = []
-        if len(density_output) > 0:
-            density_output = torch.cat(density_output, dim=0)
-            density_obs = torch.cat(density_obs, dim=0)
-
-            for d_data in [density_output, density_obs]:
-                density.append(cal_density(d_data).mean())
-            density = torch.abs(density[1] - density[0])
-
         # terminal process
         if plot_val:
             plot_data_val = np.concatenate(tmp_data, axis=0)
             plot_res(plot_data_train, plot_data_val, epoch, loss_type)
 
-        sys_out_print = f"[{loss_type}] Epoch {epoch}: train loss {train_loss*10000:.4f} | val loss {val_loss*10000:.4f} | dist {dist:.4f} | density {density:.4f}"
+        sys_out_print = f"[{loss_type}] Epoch {epoch}: train loss {train_loss*10000:.4f} | val loss {val_loss*10000:.4f} | dist {dist:.4f}"
         print(sys_out_print)
         with open(
-            f"./src/local_data/assets/plot_check/{loss_type}/log.txt",
+            f"{env_dict['plot_check_dir']}/{loss_type}/log.txt",
             "a",
             encoding="utf-8",
         ) as log:
             print(sys_out_print, file=log)
 
         # # Save best model
-        # if density < best_val_density:
-        #     best_val_density = density
-        #     remove_files("./src/local_data/assets", loss_type, density)
+        # if val_loss < best_val:
+        #     best_val = val_loss
+        #     remove_files(env_dict["assets_dir"], loss_type, best_val)
         #     torch.save(
         #         model.state_dict(),
-        #         f"./src/local_data/assets/{loss_type}_{epoch}_{density:.4f}_context_model.pt",
+        #         f"{env_dict['assets_dir']}/{loss_type}_{epoch}_{best_val:.4f}_context_model.pt",
         #     )
         torch.save(
             model.state_dict(),
-            f"./src/local_data/assets/{loss_type}_{epoch}_{density:.4f}_context_model.pt",
+            f"{env_dict['assets_dir']}/{loss_type}_{epoch}_{best_val:.4f}_context_model.pt",
         )
 
 
 if __name__ == "__main__":
     print("Ray initialized already" if ray.is_initialized() else ray.init())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # 모듈 정보
-    with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
-        env_dict = json.load(fp)
 
     loss_dict = {
         # "SmoothL1Loss": nn.SmoothL1Loss(),
@@ -248,23 +228,23 @@ if __name__ == "__main__":
     }
 
     tv_ratio = env_dict["tv_ratio"]
-    # 특징 추출
-    cc = CrossCorrelation(
-        mv_bin=20,  # bin size for moving variance
-        correation_bin=60,  # bin size to calculate cross correlation
-        x_file_name="./src/local_data/raw/x_toys.csv",
-        y_file_name="./src/local_data/raw/y_toys.csv",
-        debug=False,
-        data_tranform=None,  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
-        # data_tranform={
-        #     "n_components": 8,
-        #     "method": "UMAP",
-        # },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
-        ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
-        alpha=1.5,
-    )
-    dump(cc, "./src/local_data/assets/crosscorrelation.pkl")
-    cc = load("./src/local_data/assets/crosscorrelation.pkl")
+    # # 특징 추출
+    # cc = CrossCorrelation(
+    #     mv_bin=20,  # bin size for moving variance
+    #     correation_bin=60,  # bin size to calculate cross correlation
+    #     x_file_name="./src/local_data/raw/x_toys.csv",
+    #     y_file_name="./src/local_data/raw/y_toys.csv",
+    #     debug=False,
+    #     # data_tranform=None,  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
+    #     data_tranform={
+    #         "n_components": env_dict["n_components"],
+    #         "method": env_dict["method"],
+    #     },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
+    #     ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
+    #     alpha=1.5,
+    # )
+    # dump(cc, f"{env_dict['assets_dir']}/crosscorrelation.pkl")
+    cc = load(f"{env_dict['assets_dir']}/crosscorrelation.pkl")
     data = cc.observatoins_merge_idx
     weight_vars = cc.weight_variables
     padding_torken = cc.padding_torken
@@ -281,12 +261,12 @@ if __name__ == "__main__":
     enable_concept = env_dict["enable_concept"]  # Fix 실험값 변경하지 말기
 
     num_features = data.shape[1] - 1
-    epochs = 100  # 150
+    epochs = env_dict["context_epochs"]  # 150
     print(f"num_features {num_features}")
 
     # Split data into train and validation sets
     offset = int(len(data) * tv_ratio)
-    dist = int((len(data) - offset) * 0.5)
+    dist = int((len(data) - offset) * env_dict["val_infer_ratio"])
     train_observations, train_label = data[:offset], forward_label[:offset]
     val_observations, val_label = (
         data[offset : offset + dist],
@@ -318,6 +298,7 @@ if __name__ == "__main__":
                     padding_torken=padding_torken,
                     gen_random_mask=True,  # Fix
                     forward_label=train_label,
+                    n_period=env_dict["n_period"],
                 ),
                 batch_size=batch_size,
                 shuffle=True,
@@ -329,6 +310,7 @@ if __name__ == "__main__":
                     padding_torken=padding_torken,
                     gen_random_mask=False,  # Fix
                     forward_label=val_label,
+                    n_period=env_dict["n_period"],
                 ),
                 batch_size=batch_size,
                 shuffle=False,
