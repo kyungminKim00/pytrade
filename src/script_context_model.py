@@ -20,8 +20,6 @@ from util import print_c, remove_files
 # 모듈 정보
 with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
     env_dict = json.load(fp)
-
-
 def to_result(res, label=0):
     src = res.detach().cpu().numpy()
     return np.concatenate(
