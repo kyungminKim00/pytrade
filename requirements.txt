@@ -38,3 +38,4 @@ captum
 xgboost
 catboost
 torch
+umap-learn
