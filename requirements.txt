@@ -33,9 +33,9 @@ click
 schedule
 ipykernel
 modin[ray]==0.15.3
-scikit-image
 lime
 shap
 captum
 xgboost
 catboost
+torch
