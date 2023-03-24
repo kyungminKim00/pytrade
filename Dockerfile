@@ -20,6 +20,7 @@ RUN python3 -m pip install --upgrade pip
 RUN pip3 install --no-cache-dir -r /dev_env/requirements.txt
 RUN pip3 install --no-cache-dir -r /dev_env/ci_requirements.txt
 # RUN pip3 install torch --extra-index-url https://download.pytorch.org/whl/cu112
+RUN pip3 install torch --index-url https://download.pytorch.org/whl/cu118
 # 명시적 선언(컨테이너 생성시 재오픈 필요)
 EXPOSE 8888 8787 8786
  
