@@ -118,3 +118,12 @@ y_pred = cb_model.predict(X_test)
 acc = accuracy_score(y_test, y_pred)
 
 print(f"Accuracy: {acc:.2f}")
+
+
+
+
+
+제일 먼저 해야 할 일
+1. 모형 hiddens X 4 로 바꾸어서 평가 보기
+2. Validation data 도 UML 에 포함 (재학습 계속 한다고 가정, context model이 통계량만 맞으면 국면을 잡아 낸다고 가정)
+** 주의 현재까지 실험은 self.fc_mean 오류가 있었음 (어떻게 실험할지 고민 해 보기)

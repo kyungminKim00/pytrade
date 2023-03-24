@@ -238,6 +238,7 @@ class MaskedLanguageModel(nn.Module):
             num_layers=6,
         )
 
+        self.fc_mean = nn.Linear(hidden_size, latent_size)
         self.fc_variance = nn.Linear(hidden_size, latent_size)
         self.fc_reparameterize = nn.Linear(latent_size, hidden_size)
         self.fc = nn.Linear(hidden_size, num_features)
@@ -322,7 +323,7 @@ class MaskedLanguageModel(nn.Module):
         output = nn.AdaptiveAvgPool1d(output.size(0))(output.permute(1, 2, 0))
         output = output.permute(2, 0, 1)
 
-        mean = self.fc_variance(output)
+        mean = self.fc_mean(output)
         log_var = self.fc_variance(output)
         z = self.reparameterize(mean, log_var)
         output = self.fc_reparameterize(z)
