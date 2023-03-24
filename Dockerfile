@@ -1,8 +1,7 @@
 # Rapids + Torch images (cuda 11.2, cudnn8.1)
 # FROM ubuntu:18.04
 # FROM rapidsai/rapidsai-core:22.08-cuda11.2-runtime-ubuntu18.04-py3.9
-# nvidia docerk cudnn8.1 pytorch, tensorflow 포함 버젼
-FROM nvcr.io/nvidia/pytorch:21.08-py3-tf2.6
+FROM nvidia/cuda:11.7
 ENV DEBIAN_FRONTEND noninteractive
 RUN mkdir /dev_env
 WORKDIR /dev_env
