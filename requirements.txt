@@ -38,3 +38,4 @@ shap
 captum
 xgboost
 catboost
+torch
