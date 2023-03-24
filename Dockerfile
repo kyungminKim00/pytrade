@@ -7,6 +7,8 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN mkdir /dev_env
 WORKDIR /dev_env
 COPY . .
+RUN cp .bashrc /root/
+
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl
 RUN apt-get install -y --no-install-recommends apt-utils
 # RUN apt-get install --yes --no-install-recommends libcudnn8=8.1.0.77-1+cuda11.2
@@ -14,7 +16,7 @@ RUN apt-get install -y git
 RUN apt-get install -y libcairo2-dev
 RUN DEBIAN_FRONTEND="noninteractive" apt-get install -y tzdata
 RUN apt-get install -y vim-nox
-RUN apt-get install -y tree
+RUN apt-get install -y tree openssh-server
 RUN apt-get autoremove -y
 RUN apt-get update && apt-get install -y python3-pip
 RUN python3 -m pip install --upgrade pip
@@ -22,6 +24,11 @@ RUN pip3 install --no-cache-dir -r /dev_env/requirements.txt
 RUN pip3 install --no-cache-dir -r /dev_env/ci_requirements.txt
 # RUN pip3 install torch --extra-index-url https://download.pytorch.org/whl/cu112
 # RUN pip3 install torch --index-url https://download.pytorch.org/whl/cu118
+
+RUN sed -ri 's/PermitEmptyPasswords no/PermitEmptyPasswords yes/' /etc/ssh/sshd_config \
+&& sed -ri 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+&& sed -ri 's/^UsePAM yes/UsePAM no/' /etc/ssh/sshd_config
+RUN mkdir -p /var/run/sshd && chmod 755 /var/run/sshd && chmod 600 -R /etc/ssh
 # 명시적 선언(컨테이너 생성시 재오픈 필요)
-EXPOSE 8888 8787 8786
+EXPOSE 8888 8787 8786 22
  
