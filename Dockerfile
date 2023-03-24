@@ -1,6 +1,7 @@
 # Rapids + Torch images (cuda 11.2, cudnn8.1)
 # FROM ubuntu:18.04
 # FROM rapidsai/rapidsai-core:22.08-cuda11.2-runtime-ubuntu18.04-py3.9
+FROM python/3.9-slim
 FROM nvidia/cuda:11.2
 ENV DEBIAN_FRONTEND noninteractive
 RUN mkdir /dev_env
