@@ -228,22 +228,24 @@ if __name__ == "__main__":
     }
 
     tv_ratio = env_dict["tv_ratio"]
-    # # 특징 추출
-    # cc = CrossCorrelation(
-    #     mv_bin=20,  # bin size for moving variance
-    #     correation_bin=60,  # bin size to calculate cross correlation
-    #     x_file_name="./src/local_data/raw/x_toys.csv",
-    #     y_file_name="./src/local_data/raw/y_toys.csv",
-    #     debug=False,
-    #     # data_tranform=None,  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
-    #     data_tranform={
-    #         "n_components": env_dict["n_components"],
-    #         "method": env_dict["method"],
-    #     },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
-    #     ratio=tv_ratio,  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
-    #     alpha=1.5,
-    # )
-    # dump(cc, f"{env_dict['assets_dir']}/crosscorrelation.pkl")
+    # 특징 추출
+    cc = CrossCorrelation(
+        mv_bin=20,  # bin size for moving variance
+        correation_bin=60,  # bin size to calculate cross correlation
+        x_file_name="./src/local_data/raw/x_toys.csv",
+        y_file_name="./src/local_data/raw/y_toys.csv",
+        debug=False,
+        # data_tranform=None,  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
+        data_tranform={
+            "n_components": env_dict["n_components"],
+            "method": env_dict["method"],
+        },  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
+        ratio=env_dict[
+            "rdt_tv_ratio"
+        ],  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
+        alpha=1.5,
+    )
+    dump(cc, f"{env_dict['assets_dir']}/crosscorrelation.pkl")
     cc = load(f"{env_dict['assets_dir']}/crosscorrelation.pkl")
     data = cc.observatoins_merge_idx
     weight_vars = cc.weight_variables

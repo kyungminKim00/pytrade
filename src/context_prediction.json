@@ -1,5 +1,6 @@
 {
-    "tv_ratio": 0.8, 
+    "tv_ratio": 0.8,
+    "rdt_tv_ratio": 0.9,
     "max_seq_length" : 120,
     "batch_size" : 4,
     "hidden_size" : 32,
