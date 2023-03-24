@@ -20,6 +20,8 @@ from util import print_c, remove_files
 # 모듈 정보
 with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
     env_dict = json.load(fp)
+
+
 def to_result(res, label=0):
     src = res.detach().cpu().numpy()
     return np.concatenate(
@@ -243,6 +245,7 @@ if __name__ == "__main__":
         ],  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
         alpha=1.5,
     )
+
     dump(cc, f"{env_dict['assets_dir']}/crosscorrelation.pkl")
     cc = load(f"{env_dict['assets_dir']}/crosscorrelation.pkl")
     data = cc.observatoins_merge_idx
