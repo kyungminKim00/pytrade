@@ -1,8 +1,8 @@
 # Rapids + Torch images (cuda 11.2, cudnn8.1)
 # FROM ubuntu:18.04
 # FROM rapidsai/rapidsai-core:22.08-cuda11.2-runtime-ubuntu18.04-py3.9
-# cuda 11.8 + cudnn8.1 + ubuntu22.04(python3.10)
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+# cuda 11.7 + cudnn8.1 + ubuntu22.04(python3.10)
+FROM nvidia/cuda:11.7.0-cudnn8-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND noninteractive
 RUN mkdir /dev_env
 WORKDIR /dev_env
@@ -21,7 +21,7 @@ RUN python3 -m pip install --upgrade pip
 RUN pip3 install --no-cache-dir -r /dev_env/requirements.txt
 RUN pip3 install --no-cache-dir -r /dev_env/ci_requirements.txt
 # RUN pip3 install torch --extra-index-url https://download.pytorch.org/whl/cu112
-RUN pip3 install torch --index-url https://download.pytorch.org/whl/cu118
+# RUN pip3 install torch --index-url https://download.pytorch.org/whl/cu118
 # 명시적 선언(컨테이너 생성시 재오픈 필요)
 EXPOSE 8888 8787 8786
  
