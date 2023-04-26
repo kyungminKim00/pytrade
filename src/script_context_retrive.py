@@ -13,11 +13,14 @@ import torch.nn.functional as F
 import torch.optim as optim
 from joblib import dump, load
 from plotly.subplots import make_subplots
+from scipy.stats import wasserstein_distance
 from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 
 from masked_language_model import MaskedLanguageModel, MaskedLanguageModelDataset
 from util import print_c, remove_files
+
+c_distance = wasserstein_distance
 
 # 모듈 정보
 with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
@@ -25,7 +28,7 @@ with open("./src/context_prediction.json", "r", encoding="utf-8") as fp:
 
 
 def gather_data(
-    predict_up, predict_down, predict_std, predict_up_down, real_rtn, real_std
+    predict_up_down, real_rtn, real_std, real_idx, ctx_vector_0, ctx_vector_1
 ):
     def is_any(_tensor):
         return (
@@ -35,21 +38,16 @@ def gather_data(
         )
 
     return {
-        "predict_up": is_any(predict_up),
-        "predict_down": is_any(predict_down),
-        "predict_std": is_any(predict_std),
         "predict_up_down": is_any(predict_up_down),
         "real_rtn": is_any(real_rtn),
         "real_std": is_any(real_std),
+        "real_idx": is_any(real_idx),
+        "ctx_vector_0": is_any(ctx_vector_0),
+        "ctx_vector_1": is_any(ctx_vector_1),
     }
 
 
-def to_result(res):
-    src = res.detach().cpu().numpy()
-    return src
-
-
-def plot_res(plot_data_train, plot_data_val, plot_data_infer, epoch, loss_type):
+def plot_res(plot_data_train, plot_data_infer, epoch, top_n=10):
     """plot_data_train"""
     y = np.where(plot_data_train["real_rtn"] > 0, 1, 0)
     y_hat = np.where(plot_data_train["predict_up_down"] > 0, 1, 0)
