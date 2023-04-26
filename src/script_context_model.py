@@ -106,6 +106,7 @@ def KL_divergence(z, mu, log_var):
     kl_loss = log_qzx - log_pz
     kl_loss = kl_loss.sum(dim=-1)
     return kl_loss.mean()
+    # return 0
 
 
 def train(
@@ -232,8 +233,8 @@ if __name__ == "__main__":
     cc = CrossCorrelation(
         mv_bin=20,  # bin size for moving variance
         correation_bin=60,  # bin size to calculate cross correlation
-        x_file_name="./src/local_data/raw/x_toys.csv",
-        y_file_name="./src/local_data/raw/y_toys.csv",
+        x_file_name=env_dict["x_file_name"],
+        y_file_name=env_dict["y_file_name"],
         debug=False,
         # data_tranform=None,  # None: 데이터변환 수행안함, n_components: np.inf 는 전체 차원
         data_tranform={
@@ -247,7 +248,7 @@ if __name__ == "__main__":
     )
 
     dump(cc, f"{env_dict['assets_dir']}/crosscorrelation.pkl")
-    cc = load(f"{env_dict['assets_dir']}/crosscorrelation.pkl")
+    cc = load(f"{env_dict['crosscorrelation']}")
     data = cc.observatoins_merge_idx
     weight_vars = cc.weight_variables
     padding_torken = cc.padding_torken

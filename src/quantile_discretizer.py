@@ -37,9 +37,9 @@ class QuantileDiscretizer:
         #     bound[attr] = 2
 
         data_length = self.clipped_vectors.shape[0]
-        h = alpha * self.std * np.power(data_length, -1 / 3)
+        h = alpha * self.std * np.power(data_length, 1 / 3)
 
-        self.n_bins = bound / h
+        self.n_bins = min(int(np.ceil(bound / h)), 5000)
         self.n_bins.replace(np.inf, 0, inplace=True)
         self.n_bins = self.n_bins.astype(int)
 

@@ -3,8 +3,8 @@
     "rdt_tv_ratio": 0.9,
     "max_seq_length" : 120,
     "batch_size" : 4,
-    "hidden_size" : 128,
-    "step_size" : 4e-5,
+    "hidden_size" : 256,
+    "step_size" : 5e-5,
     "enable_concept": 0,
     "val_infer_ratio": 0.5,
     "n_period": 60,
@@ -14,6 +14,13 @@
     "method": "UMAP",
     "plot_check_dir": "./src/local_data/assets/plot_check",
     "assets_dir": "./src/local_data/assets",
-    "raw_dir": "./src/local_data/raw"
-    
+    "raw_dir": "./src/local_data/raw",
+    "x_file_name": "./src/local_data/raw/x_toys.csv",
+    "y_file_name": "./src/local_data/raw/y_toys.csv",
+    "crosscorrelation": "./src/local_data/assets/crosscorrelation.pkl",
+    "context_model": "./src/local_data/assets/mse_30_inf_context_model.pt",
+    "bias_model": "./src/local_data/assets/mse_96_inf_prediction_model.pt",
+    "bias_res": "./src/local_data/assets/plot_check/mse/prediction/infer_mse_92.csv",
+    "sampleing_iters": 10,
+    "top_n": 10
 }

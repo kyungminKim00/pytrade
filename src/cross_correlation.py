@@ -4,6 +4,7 @@ import bottleneck as bn
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import psutil
 import ray
 import umap
 from sklearn.decomposition import PCA
@@ -28,6 +29,15 @@ def calc_corr(x_col, X, Y, correation_bin):
         )
         corr[k] = numerator / denominator
     return corr[correation_bin:]
+
+
+def fill_na(data, text):
+    _df = pd.DataFrame(data)
+    _df.fillna(axis=0, method="ffill", inplace=True)
+    data = _df.to_numpy()
+    data = np.nan_to_num(data)
+    print_c(f"num of nan on {text}: {np.isnan(data).sum()} {data.shape}")
+    return data
 
 
 class CrossCorrelation:
@@ -88,6 +98,17 @@ class CrossCorrelation:
             self.observatoins,
             self.forward_label,
         ) = self.get_forward_returns(self.Y, n_periods=n_periods)
+
+        # na check
+        print_c(
+            f"num of nan on forward_returns: {np.isnan(self.forward_returns).sum()} {self.forward_returns.shape}"
+        )
+        print_c(
+            f"num of nan on observatoins: {np.isnan(self.observatoins).sum()} {self.observatoins.shape}"
+        )
+
+        print_c("fill_na")
+        self.observatoins = fill_na(self.observatoins, "observatoins")
 
         if enable_predefined_mask:
             self.predefined_mask = self.std_idx(alpha=alpha)
@@ -221,28 +242,30 @@ class CrossCorrelation:
     def get_forward_returns(self, Y, n_periods=60):
         _forward_returns = np.zeros_like(Y)
         _forward_std = np.zeros_like(Y)
+        _current_values = np.zeros_like(Y)
         for i in range(len(Y) - n_periods):
             _forward_returns[i] = (Y[i + n_periods] - Y[i]) / Y[i]
+            _current_values[i] = Y[i]
 
         for i in range(len(Y) - n_periods):
-            log_stock_prices = np.log(Y[i : i + n_periods])
-            log_price_diffs = np.diff(log_stock_prices)
-            std_dev = np.std(log_price_diffs)
+            std_dev = np.std(_forward_returns[i : i + n_periods])
             _forward_std[i] = std_dev
 
         # align index
         _forward_returns = _forward_returns[:-n_periods]
         _forward_std = _forward_std[:-n_periods]
+        _current_values = _current_values[:-n_periods]
         self.observatoins = self.observatoins[:-n_periods, :]
 
         # generate labels for prediction model
-        _forward_label = np.ones((_forward_returns.shape[0], 3)) * (np.inf)
+        _forward_label = np.ones((_forward_returns.shape[0], 4)) * (np.inf)
         up_mask = _forward_returns >= 0
         down_mask = _forward_returns < 0
 
         _forward_label[up_mask, 0] = _forward_returns[up_mask]
         _forward_label[down_mask, 1] = _forward_returns[down_mask]
-        _forward_label[:, 2] = _forward_std
+        _forward_label[:, 2] = _current_values
+        _forward_label[:, 3] = _forward_std
 
         return _forward_returns, self.observatoins, _forward_label
 

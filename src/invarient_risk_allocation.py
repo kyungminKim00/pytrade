@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import scipy.optimize as opt
 
 
 def invarient_risk_allocation():
-
     # Load the asset data and calculate returns
     returns = pd.read_csv("asset_returns.csv", index_col=0)
     returns = returns.pct_change().dropna()

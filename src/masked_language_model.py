@@ -251,11 +251,11 @@ class MaskedLanguageModel(nn.Module):
         self.bn_latent = nn.BatchNorm1d(num_features=hidden_size)
 
         # option 1 - concat 후 어텐션, 판별
-        # self.up_down_attn = nn.MultiheadAttention(
-        #     hidden_size * 2, num_heads=2, dropout=0.1, batch_first=True
-        # )
-        # self.fc_up_down = nn.Linear(hidden_size * 2, 1)
-        # self.fc_std = nn.Linear(hidden_size * 2, 1)
+        self.up_down_attn = nn.MultiheadAttention(
+            hidden_size * 2, num_heads=2, dropout=0.1, batch_first=True
+        )
+        self.fc_up_down = nn.Linear(hidden_size * 2, 1)
+        self.fc_std = nn.Linear(hidden_size * 2, 1)
 
         # option 2 - concat 후, 압축, 어텐션, 판별
         # self.mp1d = nn.MaxPool1d(2, stride=2)
@@ -266,9 +266,12 @@ class MaskedLanguageModel(nn.Module):
         # self.fc_std = nn.Linear(hidden_size, 1)
 
         # option 3 - concat 후 압축, 판별
-        self.mp1d = nn.MaxPool1d(2, stride=2)
-        self.fc_up_down = nn.Linear(hidden_size, 1)
-        self.fc_std = nn.Linear(hidden_size, 1)
+        # self.mp1d = nn.MaxPool1d(2, stride=2)
+        # self.fc_up_down = nn.Linear(hidden_size, 1)
+        # self.fc_std = nn.Linear(hidden_size, 1)
+
+        # # option 4
+        # self.fc_directions = nn.Linear(hidden_size, 4)
 
         self.pos_encoder = PositionalEncoding(
             hidden_size, max_seq_length, enable_concept
@@ -316,9 +319,6 @@ class MaskedLanguageModel(nn.Module):
         # # # # transform encoder 의 인코더 src_mask는 미래의 값을 볼 것인가 아닌가에 초첨이 맞추어져 있음.
         src_pad_mask = self.generate_src_mask(src_mask, pad_mask)
         output = self.transformer_encoder(emd, src_key_padding_mask=src_pad_mask)
-        # output = self.transformer_encoder(emd, src_key_padding_mask=pad_mask)  # it works for
-
-        # output = self.transformer_encoder(emd)
 
         output = nn.AdaptiveAvgPool1d(output.size(0))(output.permute(1, 2, 0))
         output = output.permute(2, 0, 1)
@@ -331,29 +331,32 @@ class MaskedLanguageModel(nn.Module):
         seq_length, batch_size, feature = output.size()
         output = output.view(batch_size * seq_length, feature)
         output = self.bn_latent(output)
-        output = output.view(seq_length, batch_size, feature)
+        enc_output = output.view(seq_length, batch_size, feature)
 
-        if domain == "band_prediction":  # 디코더 학습 및 추론
+        if (
+            domain == "direction_prediction" or domain == "band_prediction"
+        ):  # 디코더 학습 및 추론
             dec_obs = self.decoder_embedding(dec_obs)
             dec_obs = dec_obs.permute(1, 0, 2)
             dec_obs = self.pos_encoder(dec_obs)
             decoder_output = self.transformer_decoder(
                 dec_obs,
-                output,
+                enc_output,
                 tgt_key_padding_mask=dec_pad_mask,
             )
             decoder_output = decoder_output.permute(1, 0, 2)
 
+            # for option 1,2,3
             fc_up_brg = self.fc_up_brg(decoder_output)
             output_vector_up = self.fc_up(fc_up_brg)
             fc_down_brg = self.fc_down_brg(decoder_output)
             output_vector_down = self.fc_down(fc_up_brg)
 
             # option 1 - concat 후 어텐션, 판별
-            # cc = torch.concat([fc_up_brg, fc_down_brg], dim=-1)
-            # up_down_attn, _ = self.up_down_attn(cc, cc, cc)
-            # output_vector_up_down = self.fc_up_down(up_down_attn)
-            # output_vector_std = self.fc_std(up_down_attn)
+            cc = torch.concat([fc_up_brg, fc_down_brg], dim=-1)
+            up_down_attn, _ = self.up_down_attn(cc, cc, cc)
+            output_vector_up_down = self.fc_up_down(up_down_attn)
+            output_vector_std = self.fc_std(up_down_attn)
 
             # option 2 - concat 후, 압축, 어텐션, 판별
             # cc = torch.concat([fc_up_brg, fc_down_brg], dim=-1)
@@ -362,21 +365,34 @@ class MaskedLanguageModel(nn.Module):
             # output_vector_up_down = self.fc_up_down(up_down_attn)
             # output_vector_std = self.fc_std(up_down_attn)
 
-            # option 3 - concat 후 압축, 판별
-            cc = torch.concat([fc_up_brg, fc_down_brg], dim=-1)
-            cc = self.mp1d(cc)
-            output_vector_up_down = self.fc_up_down(cc)
-            output_vector_std = self.fc_std(cc)
+            # # option 3 - concat 후 압축, 판별
+            # cc = torch.concat([fc_up_brg, fc_down_brg], dim=-1)
+            # cc = self.mp1d(cc)
+            # output_vector_up_down = self.fc_up_down(cc)
+            # output_vector_std = self.fc_std(cc)
 
-            # option 4 - decoder_output 을 공용벡터로 그냥 up, down, up_down, std 한꺼번에 구하기
-            # 코드 구현 전, 꼭 테스트 해보기 - (hiddens, 4) -> splite (hiddens, 1) X 4
+            # # option 4 - decoder_output 을 공용벡터로 그냥 up, down, up_down, std 한꺼번에 구하기
+            # # 코드 구현 전, 꼭 테스트 해보기 - (hiddens, 4) -> splite (hiddens, 1) X 4
+            # cc = self.fc_directions(decoder_output)
+            # cc_list = torch.split(cc, 1, dim=-1)
+            # output_vector_up = cc_list[0],
+            # output_vector_down = cc_list[1],
+            # output_vector_up_down = cc_list[2],
+            # output_vector_std = cc_list[3],
 
-            return (
-                output_vector_up,
-                output_vector_down,
-                output_vector_std,
-                output_vector_up_down,
-            )
+            if domain == "band_prediction":  # 추론
+                return (
+                    output_vector_up_down,
+                    enc_output.permute(1, 0, 2),
+                    decoder_output,
+                )
+            else:
+                return (
+                    output_vector_up,
+                    output_vector_down,
+                    output_vector_std,
+                    output_vector_up_down,
+                )
 
         if domain == "context":  # 인코더 학습 및 추론
             output_vector = self.fc(output.permute(1, 0, 2))
