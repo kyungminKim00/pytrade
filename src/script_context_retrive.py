@@ -48,85 +48,115 @@ def gather_data(
 
 
 def plot_res(plot_data_train, plot_data_infer, epoch, top_n=10):
-    """plot_data_train"""
-    y = np.where(plot_data_train["real_rtn"] > 0, 1, 0)
-    y_hat = np.where(plot_data_train["predict_up_down"] > 0, 1, 0)
-    print(
-        f"[train] Accuracy:{accuracy_score(y, y_hat):.3} MAE:{np.mean(np.abs(y - y_hat)):.3}"
-    )
+    """Data Retrive"""
+    n_try = epoch
+    real_rtn = plot_data_infer["real_rtn"]
+    predict_up_down = plot_data_infer["predict_up_down"]
+    # predict_std = plot_data_infer["predict_std"]
+    real_idx = plot_data_infer["real_idx"]
+    real_std = plot_data_infer["real_std"]
 
-    """plot_data_val
+    y = np.where(real_rtn > 0, 1, 0)
+    y_hat = np.where(predict_up_down > 0, 1, 0)
+
+    accuracy = accuracy_score(y, y_hat)
+    MAE = np.mean(np.abs(real_rtn - predict_up_down))
+    print(f"[infer] Accuracy:{accuracy:.3} MAE:{MAE:.3}")
+
+    trn_up_down = np.where(plot_data_train["real_rtn"] > 0, 1, 0)
+    condition_up = trn_up_down == 1
+    condition_down = ~condition_up
+    condition_up_idx = np.argwhere(condition_up).squeeze()
+    condition_down_idx = np.argwhere(condition_down).squeeze()
+
+    for latent in ["ctx_vector_0", "ctx_vector_1"]:
+        ctx_res = {}
+        real_ctx = plot_data_train[latent]
+        prd_ctx = plot_data_infer[latent]
+        for infer_idx, _ in enumerate(y_hat):
+            """Gather Data"""
+            prd_ctx_ins = prd_ctx[infer_idx]
+            real_rtn_ins = real_rtn[infer_idx]
+            real_std_ins = real_std[infer_idx]
+            predict_up_down_ins = predict_up_down[infer_idx]
+            # predict_std_ins = predict_std[infer_idx]
+            real_idx_ins = real_idx[infer_idx]
+
+            if predict_up_down_ins:
+                search_idx = condition_up_idx
+            else:
+                search_idx = condition_down_idx
+
+            score = [
+                (idx, c_distance(prd_ctx_ins, real_ctx[idx]))
+                for _, idx in enumerate(search_idx)
+            ]
+            sorted_score = sorted(score, key=lambda x: x[1])
+            retrive_idx = np.array(sorted_score[:top_n], dtype=int)[:, 0]
+
+            mu = plot_data_train["real_rtn"][retrive_idx]
+            std = plot_data_train["real_std"][retrive_idx]
+            ctx_res.update(
+                {
+                    infer_idx: {
+                        "bias": predict_up_down_ins,
+                        # "bias_std": predict_std_ins,
+                        # "fewshot_bias": np.mean(mu[:3]),
+                        # "fewshot_std": np.mean(std[:3]),
+                        "fewshot_bias": np.mean(mu),
+                        "fewshot_std": np.mean(std),
+                        "real_rtn": real_rtn_ins,
+                        "real_std": real_std_ins,
+                        "real_idx": real_idx_ins,
+                    }
+                }
+            )
+
+    """plot data
     """
-    iters = {"valid": plot_data_val, "infer": plot_data_infer}
-    for val_or_infer, data_dict in iters.items():
-        plot_data = pd.DataFrame.from_dict(data_dict)
-
-        y = np.where(plot_data["real_rtn"] > 0, 1, 0)
-        y_hat = np.where(plot_data["predict_up_down"] > 0, 1, 0)
-
-        # # 데이터 Drop
-        # plot_data.to_csv(
-        #     f"{env_dict['plot_check_dir']}/{loss_type}/prediction/{val_or_infer}_{loss_type}_{epoch}.csv"
-        # )
-
-        accuracy = accuracy_score(y, y_hat)
-        print(
-            f"[{val_or_infer}] Accuracy:{accuracy:.3} MAE:{np.mean(np.abs(y - y_hat)):.3}"
+    data = pd.DataFrame.from_dict(ctx_res).T
+    data.to_csv(f"{env_dict['plot_check_dir']}/img/{latent}_{n_try}.csv")
+    
+    MAE_2 = np.mean(np.abs(data["real_rtn"] - data["fewshot_bias"]))
+    
+    fig_sub = make_subplots(rows=2, cols=1)
+    colors = px.colors.qualitative.T10
+    for i, item in enumerate(
+        [
+            "bias",
+            "fewshot_bias",
+            "real_rtn"
+        ]
+    ):
+        scatter = go.Scatter(
+            x=list(data.index)
+            y=data[item],
+            line=dict(color=colors[i]),
+            legendgroup=item,
+            name=item,
         )
-
-        fig = {}
-        colors = px.colors.qualitative.T10  # T10 색상 팔레트 사용
+        fig_sub.add_trace(scatter, row=1, col=1)
+        
         for i, item in enumerate(
             [
-                "predict_up",
-                "predict_down",
-                "predict_up_down",
-                "predict_std",
-                "real_rtn",
-                "real_std",
+                # "bias_std",
+                "fewshot_std"
             ]
         ):
-            fig[item] = go.Scatter(
-                x=list(plot_data.index),
-                y=plot_data[item],
+            scatter = go.Scatter(
+                x=list(data.index),
+                y=data[item],
                 line=dict(color=colors[i]),
                 legendgroup=item,
                 name=item,
             )
-
-        # Create subplots with 1 row and 2 columns
-        fig_sub = make_subplots(rows=2, cols=1)
-        for item, row in zip(
-            ["predict_up", "predict_down", "predict_up_down", "real_rtn"], [1, 1, 1, 1]
-        ):
-            fig_sub.add_trace(fig[item], row=row, col=1)
-        for item, row in zip(["predict_std", "real_std"], [2, 2]):
-            fig_sub.add_trace(fig[item], row=row, col=1)
-
-        # Update the subplot layout
-        fig_sub.update_layout(title=f"{val_or_infer} accuracy_score: {accuracy:.3}")
-        fig_sub.write_image(
-            f"{env_dict['plot_check_dir']}/{loss_type}/prediction/{val_or_infer}_{loss_type}_{epoch}_{accuracy:.3}.png"
+            fig_sub.add_trace(scatter, row=2, col=1)
+        fig_sub.update_layout(
+            title=f"accuracy_score: {accuracy:.3}, MAE:{MAE:.3}, MAE2:{MAE2:.3}, fewshot_std:{data['fewshot_std'].mean():.3}"
         )
-
-
-def plot_animate(loss_type):
-    base_dir = env_dict["plot_check_dir"]
-    files = []
-    for img_fn in os.listdir(base_dir):
-        if f"cc_2D_{loss_type}" in img_fn:
-            files.append(f"{base_dir}/{loss_type}/{img_fn}")
-
-    for file in files:
-        if len(files) > 0:
-            images = [imageio.imread(img_fn) for img_fn in file]
-            imageio.mimsave(
-                f"{base_dir}/{loss_type}/animated_image_{loss_type}.gif",
-                images,
-                duration=1,
-                loop=1,
-            )
-
+        fig_sub.write_image(
+            f"{env_dict['plot_check_dir']}/img/final_{latent}_{n_try}.png"
+        )
 
 def Earthmover(y_pred, y_true):
     return torch.mean(
@@ -134,31 +164,7 @@ def Earthmover(y_pred, y_true):
     )
 
 
-def decode_loss(
-    output_vector_up,
-    output_vector_down,
-    output_vector_std,
-    output_vector_up_down,
-    fwd,
-    up_mask,
-    down_mask,
-    std_mask,
-    criterion,
-):
-    loss = 0
-    val, _ = torch.min(fwd[:, :, :2], dim=-1)
-    if up_mask.any():
-        loss += criterion(output_vector_up[up_mask], fwd[up_mask][:, 0][:, None])
-    if down_mask.any():
-        loss += criterion(output_vector_down[down_mask], fwd[down_mask][:, 1][:, None])
-    if std_mask.any():
-        loss += criterion(output_vector_std[std_mask], fwd[std_mask][:, 2][:, None])
-    if down_mask.any():
-        loss += criterion(output_vector_up_down[std_mask], val[std_mask][:, None])
-    return loss
-
-
-def learn_model(
+def rc_from_model(
     model,
     obs,
     src_mask,
@@ -167,10 +173,6 @@ def learn_model(
     dec_src_mask,
     dec_pad_mask,
     fwd,
-    up_mask,
-    down_mask,
-    std_mask,
-    criterion,
     domain,
 ):
     (
@@ -191,53 +193,30 @@ def learn_model(
         dec_pad_mask.to(device),
     )
     (
-        output_vector_up,
-        output_vector_down,
-        output_vector_std,
         output_vector_up_down,
+        encoder_output,
+        decoder_output,
     ) = model(obs, src_mask, pad_mask, domain, dec_obs, dec_src_mask, dec_pad_mask)
-    loss = decode_loss(
-        output_vector_up,
-        output_vector_down,
-        output_vector_std,
-        output_vector_up_down,
-        fwd,
-        up_mask,
-        down_mask,
-        std_mask,
-        criterion,
-    )
-    return (
-        output_vector_up,
-        output_vector_down,
-        output_vector_std,
-        output_vector_up_down,
-        loss,
-    )
+
+    return output_vector_up_down, encoder_output, decoder_output
 
 
 def label_mask(fwd):
     fwd_mask = fwd != np.inf
-    up_mask = fwd_mask[:, :, 0]
-    down_mask = fwd_mask[:, :, 1]
-    std_mask = fwd_mask[:, :, 2]
-    return up_mask, down_mask, std_mask
+    return fwd_mask[:,:,-1]
 
 
-def val_infer(
+def retrive_context(
     dataloader,
-    plot_bool,
     model,
-    criterion,
     domain,
-    predict_up,
-    predict_down,
-    predict_std,
     predict_up_down,
+    ctx_vector_0,
+    ctx_vector_1,
     real_rtn,
     real_std,
+    real_idx,
 ):
-    tot_loss = 0
     for (
         obs,
         src_mask,
@@ -247,14 +226,12 @@ def val_infer(
         dec_src_mask,
         dec_pad_mask,
     ) in dataloader:
-        up_mask, down_mask, std_mask = label_mask(fwd)
+        std_mask = label_mask(fwd)
         (
-            output_vector_up,
-            output_vector_down,
-            output_vector_std,
             output_vector_up_down,
-            loss,
-        ) = learn_model(
+            encoder_output,
+            decoder_output,
+        ) = rc_from_model(
             model,
             obs,
             src_mask,
@@ -263,266 +240,103 @@ def val_infer(
             dec_src_mask,
             dec_pad_mask,
             fwd,
-            up_mask,
-            down_mask,
-            std_mask,
-            criterion,
             domain,
         )
-        tot_loss += loss.item()
-
-        if plot_bool:
-            r_rtn, _ = torch.min(fwd[:, :, :2], dim=-1)
-            r_rtn = r_rtn[std_mask]
-            r_std = fwd[:, :, -1][std_mask]
-
-            output_vector_up = output_vector_up.squeeze(-1)[std_mask]
-            output_vector_down = output_vector_down.squeeze(-1)[std_mask]
-            output_vector_std = output_vector_std.squeeze(-1)[std_mask]
-            output_vector_up_down = output_vector_up_down.squeeze(-1)[std_mask]
-
-            predict_up.append(output_vector_up[-1][None])
-            predict_down.append(output_vector_down[-1][None])
-            predict_std.append(output_vector_std[-1][None])
-            predict_up_down.append(output_vector_up_down[-1][None])
-            real_rtn.append(r_rtn[-1][None])
-            real_std.append(r_std[-1][None])
+        r_rtn, _ = torch.min(fwd[:,:,:2], dim=-1)
+        r_rtn = r_rtn[std_mask]
+        r_idx = fwd[:,:,:2][std_mask]
+        r_std = fwd[:,:,-1][std_mask]
+        
+        output_vector_up_down = output_vector_up_down.sequence(-1)[std_mask]
+        
+        predict_up_down.append(output_vector_up_down[-1][None])
+        real_rtn.append(real_rtn[-1][None])
+        real_std.append(real_std[-1][None])
+        real_idx.append(real_idx[-1][None])
+        ctx_vector_0.append(encoder_output[:, output_vector_up_down.shape[0]-1, :])
+        ctx_vector_1.append(decoder_output[:, output_vector_up_down.shape[0]-1, :])
+    
     return (
-        predict_up,
-        predict_down,
-        predict_std,
         predict_up_down,
+        ctx_vector_0,
+        ctx_vector_1,
         real_rtn,
         real_std,
-        tot_loss,
+        real_idx,
     )
 
 
-def train(
+def run_model(model, domain, _dataloader):
+    model.eval()
+    (
+        predict_up_down,
+        ctx_vector_0,
+        ctx_vector_1,
+        real_rtn,
+        real_std,
+        real_idx,
+    ) = (
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
+    with torch.no_grad():
+        (
+            predict_up_down,
+            ctx_vector_0,
+            ctx_vector_1,
+            real_rtn,
+            real_std,
+            real_idx,
+        ) = retrive_context(
+            _dataloader,
+            model,
+            domain,
+            predict_up_down,
+            ctx_vector_0,
+            ctx_vector_1,
+            real_rtn,
+            real_std,
+            real_idx,
+        )
+    plot_data = gather_data(
+        predict_up_down,
+        real_rtn,real_std,real_idx,ctx_vector_0,ctx_vector_1,
+    )
+    return plot_data
+
+
+def retrive(
     model,
-    train_dataloader,
-    val_dataloader,
-    infer_dataloader,
-    num_epochs,
-    lr,
-    weight_decay,
-    plot_train=False,
-    plot_val=False,
-    plot_infer=True,
-    loss_type="mse",
+    src_dataloader,
+    trg_dataloader,
+    sampleing_iters,
     domain="band_prediction",
-    weight_vars=None,
+    top_n=10,
 ):
-    optimizer = optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=lr,
-        weight_decay=weight_decay,
-    )
-
-    criterion = loss_dict[loss_type]
-    best_val = float("inf")
-    for epoch in range(num_epochs):
-        train_loss = 0
-        plot_data_train, plot_data_val = [], []
-        predict_up, predict_down, predict_std, predict_up_down, real_rtn, real_std = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        model.train()
-        for (
-            obs,
-            src_mask,
-            pad_mask,
-            fwd,
-            dec_obs,
-            dec_src_mask,
-            dec_pad_mask,
-        ) in train_dataloader:
-            up_mask, down_mask, std_mask = label_mask(fwd)
-            (
-                output_vector_up,
-                output_vector_down,
-                output_vector_std,
-                output_vector_up_down,
-                loss,
-            ) = learn_model(
-                model,
-                obs,
-                src_mask,
-                pad_mask,
-                dec_obs,
-                dec_src_mask,
-                dec_pad_mask,
-                fwd,
-                up_mask,
-                down_mask,
-                std_mask,
-                criterion,
-                domain,
-            )
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item()
-
-            if plot_train:  # gather training results
-                r_rtn, _ = torch.min(fwd[:, :, :2], dim=-1)
-                r_rtn = r_rtn[std_mask]
-                # r_std = fwd[:, :, -1][std_mask]
-                # output_vector_up = output_vector_up.squeeze(-1)[std_mask]
-                # output_vector_down = output_vector_down.squeeze(-1)[std_mask]
-                # output_vector_std = output_vector_std.squeeze(-1)[std_mask]
-                output_vector_up_down = output_vector_up_down.squeeze(-1)[std_mask]
-
-                real_rtn.append(r_rtn)
-                # real_std.append(r_std)
-                # predict_up.append(output_vector_up)
-                # predict_down.append(output_vector_down)
-                # predict_std.append(output_vector_std)
-                predict_up_down.append(output_vector_up_down)
-
-        train_loss /= len(train_dataloader)
-        if plot_train:
-            plot_data_train = gather_data(
-                predict_up,
-                predict_down,
-                predict_std,
-                predict_up_down,
-                real_rtn,
-                real_std,
-            )
-
-        """여기 부터 validation section
-        """
-        predict_up, predict_down, predict_std, predict_up_down, real_rtn, real_std = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        model.eval()
-        with torch.no_grad():
-            (
-                predict_up,
-                predict_down,
-                predict_std,
-                predict_up_down,
-                real_rtn,
-                real_std,
-                tot_loss,
-            ) = val_infer(
-                val_dataloader,
-                plot_val,
-                model,
-                criterion,
-                domain,
-                predict_up,
-                predict_down,
-                predict_std,
-                predict_up_down,
-                real_rtn,
-                real_std,
-            )
-        tot_loss /= len(val_dataloader)
-        # # Save best model
-        # if tot_loss < best_val:
-        #     remove_files(env_dict["assets_dir"], loss_type, best_val)
-        #     best_val = tot_loss
-        #     torch.save(
-        #         model.state_dict(),
-        #         f"{env_dict['assets_dir']}/{loss_type}_{epoch}_{best_val:.4f}_prediction_model.pt",
-        #     )
-        torch.save(
-            model.state_dict(),
-            f"{env_dict['assets_dir']}/{loss_type}_{epoch}_{best_val:.4f}_prediction_model.pt",
-        )
-        # terminal process - 결과데이터 취합
-        if plot_val:
-            plot_data_val = gather_data(
-                predict_up,
-                predict_down,
-                predict_std,
-                predict_up_down,
-                real_rtn,
-                real_std,
-            )
-
-        """여기 부터 inference section
-        """
-        predict_up, predict_down, predict_std, predict_up_down, real_rtn, real_std = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        model.eval()
-        with torch.no_grad():
-            (
-                predict_up,
-                predict_down,
-                predict_std,
-                predict_up_down,
-                real_rtn,
-                real_std,
-                _,
-            ) = val_infer(
-                infer_dataloader,
-                plot_infer,
-                model,
-                criterion,
-                domain,
-                predict_up,
-                predict_down,
-                predict_std,
-                predict_up_down,
-                real_rtn,
-                real_std,
-            )
-        if plot_infer:
-            plot_data_infer = gather_data(
-                predict_up,
-                predict_down,
-                predict_std,
-                predict_up_down,
-                real_rtn,
-                real_std,
-            )
-
-        # 취합 데이터 plotting
-        plot_res(plot_data_train, plot_data_val, plot_data_infer, epoch, loss_type)
-
-        sys_out_print = f"[{loss_type}] Epoch {epoch}: train loss {train_loss*10000:.4f} | val loss {tot_loss*10000:.4f}"
-        print(sys_out_print)
-        with open(
-            f"{env_dict['plot_check_dir']}/{loss_type}/prediction_log.txt",
-            "a",
-            encoding="utf-8",
-        ) as log:
-            print(sys_out_print, file=log)
+    plot_data_train = run_model(model, domain, src_dataloader)
+    for epoch in range(sampleing_iters):
+        plot_data_infer = run_model(model, domain, trg_dataloader)
+        plot_res(plot_data_train, plot_data_infer, epoch, top_n)
 
 
 if __name__ == "__main__":
     print("Ray initialized already" if ray.is_initialized() else ray.init())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    loss_dict = {
-        "SmoothL1Loss": nn.SmoothL1Loss(),
-        "mse": nn.MSELoss(),
-        "Earthmover": Earthmover,
-        "L1Loss": nn.L1Loss(),
-    }
+    # loss_dict = {
+    #     "SmoothL1Loss": nn.SmoothL1Loss(),
+    #     "mse": nn.MSELoss(),
+    #     "Earthmover": Earthmover,
+    #     "L1Loss": nn.L1Loss(),
+    # }
     tv_ratio = env_dict["tv_ratio"]
 
     print_c("Load dataset")
-    cc = load(f"{env_dict['assets_dir']}/crosscorrelation.pkl")
+    cc = load(f"{env_dict['crosscorrelation']}")
     data = cc.observatoins_merge_idx
     w_vars = cc.weight_variables
     padding_torken = cc.padding_torken
@@ -563,6 +377,37 @@ if __name__ == "__main__":
     ]:
         print(f"{k}: {len(it)}")
 
+    model_bias = MaskedLanguageModel(
+        hidden_size, max_seq_length, num_features, enable_concept
+    )
+    model_bias.load_state_dict(torch.load(env_dict['bias_model']))
+    model_bias = model_bias.to(device)
+    print_c(f"Load model: {env_dict['bias_model']}")
+
+    for name, param in model_bias.named_parameters():
+        param.requires_grad = False
+    
+    retrive(
+        model=model_bias,
+        src_dataloader=DataLoader(
+            MaskedLanguageModelDataset(
+                train_observations,
+                max_seq_length,
+                padding_torken=padding_torken,
+                gen_random_mask=False,
+                forward_label=train_label,
+                mode="decode",
+            ),
+            batch_size=1,
+            shuffle=False,
+        ),
+        sampleing_iters=epochs,
+        domain="band_prediction",
+        top_n=env_dict["top_n"],
+    )
+    
+    
+    
     # find context model
     model_files = []
     for key, v in loss_dict.items():
