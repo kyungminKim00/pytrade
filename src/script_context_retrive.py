@@ -116,27 +116,21 @@ def plot_res(plot_data_train, plot_data_infer, epoch, top_n=10):
     """
     data = pd.DataFrame.from_dict(ctx_res).T
     data.to_csv(f"{env_dict['plot_check_dir']}/img/{latent}_{n_try}.csv")
-    
+
     MAE_2 = np.mean(np.abs(data["real_rtn"] - data["fewshot_bias"]))
-    
+
     fig_sub = make_subplots(rows=2, cols=1)
     colors = px.colors.qualitative.T10
-    for i, item in enumerate(
-        [
-            "bias",
-            "fewshot_bias",
-            "real_rtn"
-        ]
-    ):
+    for i, item in enumerate(["bias", "fewshot_bias", "real_rtn"]):
         scatter = go.Scatter(
-            x=list(data.index)
+            x=list(data.index),
             y=data[item],
             line=dict(color=colors[i]),
             legendgroup=item,
             name=item,
         )
         fig_sub.add_trace(scatter, row=1, col=1)
-        
+
         for i, item in enumerate(
             [
                 # "bias_std",
@@ -157,6 +151,7 @@ def plot_res(plot_data_train, plot_data_infer, epoch, top_n=10):
         fig_sub.write_image(
             f"{env_dict['plot_check_dir']}/img/final_{latent}_{n_try}.png"
         )
+
 
 def Earthmover(y_pred, y_true):
     return torch.mean(
@@ -203,7 +198,7 @@ def rc_from_model(
 
 def label_mask(fwd):
     fwd_mask = fwd != np.inf
-    return fwd_mask[:,:,-1]
+    return fwd_mask[:, :, -1]
 
 
 def retrive_context(
@@ -242,20 +237,20 @@ def retrive_context(
             fwd,
             domain,
         )
-        r_rtn, _ = torch.min(fwd[:,:,:2], dim=-1)
+        r_rtn, _ = torch.min(fwd[:, :, :2], dim=-1)
         r_rtn = r_rtn[std_mask]
-        r_idx = fwd[:,:,:2][std_mask]
-        r_std = fwd[:,:,-1][std_mask]
-        
+        r_idx = fwd[:, :, :2][std_mask]
+        r_std = fwd[:, :, -1][std_mask]
+
         output_vector_up_down = output_vector_up_down.sequence(-1)[std_mask]
-        
+
         predict_up_down.append(output_vector_up_down[-1][None])
         real_rtn.append(real_rtn[-1][None])
         real_std.append(real_std[-1][None])
         real_idx.append(real_idx[-1][None])
-        ctx_vector_0.append(encoder_output[:, output_vector_up_down.shape[0]-1, :])
-        ctx_vector_1.append(decoder_output[:, output_vector_up_down.shape[0]-1, :])
-    
+        ctx_vector_0.append(encoder_output[:, output_vector_up_down.shape[0] - 1, :])
+        ctx_vector_1.append(decoder_output[:, output_vector_up_down.shape[0] - 1, :])
+
     return (
         predict_up_down,
         ctx_vector_0,
@@ -304,7 +299,11 @@ def run_model(model, domain, _dataloader):
         )
     plot_data = gather_data(
         predict_up_down,
-        real_rtn,real_std,real_idx,ctx_vector_0,ctx_vector_1,
+        real_rtn,
+        real_std,
+        real_idx,
+        ctx_vector_0,
+        ctx_vector_1,
     )
     return plot_data
 
@@ -380,13 +379,13 @@ if __name__ == "__main__":
     model_bias = MaskedLanguageModel(
         hidden_size, max_seq_length, num_features, enable_concept
     )
-    model_bias.load_state_dict(torch.load(env_dict['bias_model']))
+    model_bias.load_state_dict(torch.load(env_dict["bias_model"]))
     model_bias = model_bias.to(device)
     print_c(f"Load model: {env_dict['bias_model']}")
 
     for name, param in model_bias.named_parameters():
         param.requires_grad = False
-    
+
     retrive(
         model=model_bias,
         src_dataloader=DataLoader(
@@ -405,9 +404,7 @@ if __name__ == "__main__":
         domain="band_prediction",
         top_n=env_dict["top_n"],
     )
-    
-    
-    
+
     # find context model
     model_files = []
     for key, v in loss_dict.items():

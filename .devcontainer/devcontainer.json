@@ -100,7 +100,8 @@
 		"tabnine.tabnine-vscode",
 		"formulahendry.code-runner",
 		"tabnine.tabnine-vscode",
-		"formulahendry.code-runner"
-		]
+		"formulahendry.code-runner",
+		"GitHub.copilot"
+	]
 	
 }
