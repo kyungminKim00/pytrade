@@ -99,7 +99,7 @@
 		"GrapeCity.gc-excelviewer",
 		"tabnine.tabnine-vscode",
 		"formulahendry.code-runner",
-		"tabnine.tabnine-vscode",
+		// "tabnine.tabnine-vscode",
 		"formulahendry.code-runner",
 		"GitHub.copilot"
 	]
