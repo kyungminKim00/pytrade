@@ -59,7 +59,7 @@ def invarient_risk_allocation():
             options={"disp": True},
         )
         frontier_volatility.append(result["fun"])  # 해당 수익률에 대한 최소 변동성을 저장합니다.
-
+    
     # 효율적 투자선과 최적 포트폴리오를 그립니다.
     plt.plot(
         frontier_volatility, frontier_y, "b-", label="Efficient Frontier"
