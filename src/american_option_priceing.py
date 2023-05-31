@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def binomial_tree(option_type, S, X, T, r, sigma, N):
     """
     바이너리 트리 모델을 사용하여 유러피안 옵션의 가치를 계산합니다.
