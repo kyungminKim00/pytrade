@@ -90,12 +90,14 @@ class Refine:
                 )
                 candle_high.name = f"{candle_size}mins_high"
                 r_pd = r_pd.join(candle_high, how="inner")
+                r_pd = r_pd.reset_index(identifier, drop=True)
 
                 # (저가) 매분 갱신되는 캔들의 데이터 (최소값 갱신)
                 candle_low = r_pd.groupby(identifier)["low"].apply(lambda x: x.cummin())
                 candle_low.index.name = identifier
                 candle_low.name = f"{candle_size}mins_low"
                 r_pd = r_pd.join(candle_low, how="inner")
+                r_pd = r_pd.reset_index(identifier, drop=True)
 
                 # (종가) 매분 갱신되는 캔들의 데이터 (최신 종가가 캔들의 종가)
                 r_pd[f"{candle_size}mins_close"] = r_pd["close"]

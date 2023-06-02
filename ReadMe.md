@@ -1,129 +1,28 @@
-"""Lime - 동작확인
-"""
-# Lime
-import lime
-import lime.lime_tabular
-import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier
+# script_candle_stick.py
+- 각 캔들의 패턴의 5일 후 상승 하락의 확률을 알려 주는 스크립트
+input: ./src/candle_stick.json
+output: ./src/local_data/assets/plot_check/chart/*.png
 
-# iris 데이터셋을 로드합니다.
-iris = load_iris()
+# script_context_model.py
+- 시장 데이터 인코더
 
-# 분류기 모형 학습
-X_train, X_test, y_train, y_test = train_test_split(
-    iris.data, iris.target, test_size=0.2, random_state=42
-)
-dt_model = DecisionTreeClassifier(random_state=42)
-dt_model.fit(X_train, y_train)
+# script_context_retrive.py
+- 시장 데이터 디코더
 
-# LIME 모형 학습 - 라임 분류기 모형 학습 (내부적으로 샘플 생성)
-explainer = lime.lime_tabular.LimeTabularExplainer(
-    training_data=X_train,
-    mode="classification",
-    training_labels=y_train,
-    feature_names=iris.feature_names,
-)
+# script_report.py
+- 시장 인코더-디코더 결과 분석 모듈
 
-# LIME을 사용하여 모델의 예측 결과를 해석합니다. - 샘플별로 해석 함
-for idx, val in enumerate(X_test):
-    dt_prediction = dt_model.predict(X_test[idx].reshape(1, -1))[0]
-    exp = explainer.explain_instance(
-        data_row=X_test[idx], predict_fn=dt_model.predict_proba
-    )
+# script_distribute_action_simulation_best.py
+- Feature 데이터 전역탐색하여 시뮬레이션 수익률을 비트하는 Feature 탐색
 
-    # 해석 결과를 리스트로 출력합니다.
-    lime_values = exp.as_list()
-    print(lime_values)
-    # exp.show_in_notebook(show_table=True)
+# script_explain_variables.py
+- 분석 필요
 
-    # 각 특성의 영향력을 x축에, 영향력 값(상대적인 중요도)을 y축에 설정하여 그래프를 그립니다.
-    fig, ax = plt.subplots()
-    lime_values = np.array(lime_values)
-    ax.barh(
-        y=lime_values[:, 0],
-        width=lime_values[:, 1],
-        color="red",
-        alpha=0.6,
-        label="LIME",
-    )
-    ax.axvline(x=0, color="black", alpha=0.5, linestyle="--")
-    ax.set_title(
-        f"LIME 결과 (실제 클래스: {iris.target_names[y_test[idx]]}, 모델 예측 클래스: {iris.target_names[dt_prediction]})"
-    )
-    ax.set_xlabel("영향력")
-    ax.set_ylabel("특성")
-    ax.legend(loc="lower right")
-    plt.show()
-    assert False, "1 샘플에 대해서 해석"
-## 회귀분석 타입 예제
-## https://marcotcr.github.io/lime/tutorials/Using%2Blime%2Bfor%2Bregression.html 
+# script_gen_pivots.py
+- 일간 데이터 기분 마지노선 생성 모듈
+input:
+output: ./src/local_data/intermediate/dax_intermediate_pivots.csv
 
-
-"""Shap
-"""
-# Shap
-import shap
-
-"""partial_dependence
-"""
-# partial_dependence
-from sklearn.inspection import partial_dependence
-
-
-"""LRP
-"""
-# LRP
-from captum.attr import LayerGradCam
-from captum.attr import LayerIntegratedGradients
-from captum.attr import LayerDeepLift
-from captum.attr import LayerConductance
-
-
-"""XgBoost - 동작확인
-"""
-# XgBoost
-import xgboost as xgb
-from sklearn.datasets import load_iris
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
-
-iris = load_iris()
-X_train, X_test, y_train, y_test = train_test_split(
-    iris.data, iris.target, test_size=0.2, random_state=42
-)
-xgb_model = xgb.XGBClassifier(objective="multi:softprob", random_state=42, gpu_id=0)
-xgb_model.fit(X_train, y_train)
-y_pred = xgb_model.predict(X_test)
-acc = accuracy_score(y_test, y_pred)
-print(f"Accuracy: {acc:.2f}")
-
-"""CatBoost - 동작확인
-"""
-# CatBoost
-import catboost as cb
-from sklearn.datasets import load_iris
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
-
-iris = load_iris()
-X_train, X_test, y_train, y_test = train_test_split(
-    iris.data, iris.target, test_size=0.2, random_state=42
-)
-cb_model = cb.CatBoostClassifier(random_state=42, task_type="GPU")
-cb_model.fit(X_train, y_train, verbose=False)
-y_pred = cb_model.predict(X_test)
-acc = accuracy_score(y_test, y_pred)
-
-print(f"Accuracy: {acc:.2f}")
-
-
-
-
-
-제일 먼저 해야 할 일
-1. 모형 hiddens X 4 로 바꾸어서 평가 보기
-2. Validation data 도 UML 에 포함 (재학습 계속 한다고 가정, context model이 통계량만 맞으면 국면을 잡아 낸다고 가정)
-** 주의 현재까지 실험은 self.fc_mean 오류가 있었음 (어떻게 실험할지 고민 해 보기)
+# script_learn.py
+-
+input: ./src/local_data/raw/dax_tm3.csv, ./src/local_data/intermediate/dax_intermediate_pivots.csv

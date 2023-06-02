@@ -101,7 +101,8 @@
 		"formulahendry.code-runner",
 		// "tabnine.tabnine-vscode",
 		"formulahendry.code-runner",
-		"GitHub.copilot"
+		"GitHub.copilot",
+		"shd101wyy.markdown-preview-enhanced"
 	]
 	
 }
