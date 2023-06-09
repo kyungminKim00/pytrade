@@ -86,7 +86,7 @@ if __name__ == "__main__":
         ],  # data_tranform is not None 일 때 PCA 학습 샘플, 차원 축소된 observation 은 전체 샘플 다 포함 함
         alpha=1.5,
         env_dict=env_dict,
-        gen_expected_rtn=False,
+        gen_expected_rtn=True,
     )
 
     dump(cc, f"{env_dict['feature_label']}")
