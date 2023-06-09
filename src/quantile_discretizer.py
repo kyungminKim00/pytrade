@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from joblib import dump, load
 from sklearn.preprocessing import KBinsDiscretizer
-
+from collections import OrderedDict
 from util import print_c
 
 
@@ -31,20 +31,39 @@ class QuantileDiscretizer:
         self.max = self.clipped_vectors.max()
         self.min = self.clipped_vectors.min()
 
-        # 이산화 빈 사이즈 결정 with scott's
-        bound = self.max - self.min
-        # for attr in binary_attr:
-        #     bound[attr] = 2
-
-        data_length = self.clipped_vectors.shape[0]
-        h = alpha * self.std * np.power(data_length, 1 / 3)
-
-        self.n_bins = min(int(np.ceil(bound / h)), 5000)
+        # 추가
+        self.n_bins = self.evaluate_bin_size(self.clipped_vectors, known_real, alpha)
         self.n_bins.replace(np.inf, 0, inplace=True)
-        self.n_bins = self.n_bins.astype(int)
 
-        # for attr in binary_attr:
-        #     self.n_bins[attr] = 2
+    def evaluate_bin_size(self, x, known_real, alpha):
+        num_of_bins = []
+        if x.shape[0] > 50000:
+            num_statistics = 50000
+        else:
+            num_statistics = x.shape[0]
+        for col in known_real:
+            a_data = x[col]
+
+            partial_bin = []
+            for i in range(0, len(a_data), num_statistics):
+                if i == 0:
+                    start = 0
+                    end = num_statistics
+                else:
+                    start = i
+                    if i + num_statistics >= len(a_data):
+                        end = len(a_data)
+                    else:
+                        end = i + num_statistics
+                partial_bin.append(self.get_bin_size(a_data[start:end], alpha))
+            avg_bins = np.mean(partial_bin)
+            num_of_bins.append(
+                min(int(np.ceil((a_data.max() - a_data.min()) / avg_bins)), 5000)
+            )
+        return pd.Series(OrderedDict(zip(known_real, num_of_bins)))
+
+    def get_bin_size(self, a_data, alpha):
+        return alpha * np.std(a_data) / (len(a_data) ** (1 / 3))
 
     def discretizer_learn_save(self, obj_fn: str):
         # discretizer = {
@@ -63,9 +82,12 @@ class QuantileDiscretizer:
 
         discretizer = {
             # 이산화 모형
+            # "model": KBinsDiscretizer(
+            #     n_bins=self.n_bins, encode="ordinal", strategy="uniform"
+            # ).fit(self.clipped_vectors.to_numpy()),
             "model": KBinsDiscretizer(
-                n_bins=self.n_bins, encode="ordinal", strategy="quantile"
-            ).fit(self.clipped_vectors.to_numpy()),
+                n_bins=self.n_bins, encode="ordinal", strategy="uniform"
+            ).fit(self.clipped_vectors),
             "mean": self.mean,
             "std": self.std,
             "n_bins": self.n_bins,
