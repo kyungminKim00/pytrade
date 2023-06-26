@@ -39,4 +39,3 @@ xgboost
 catboost
 torch
 umap-learn
-mojito2
