@@ -2,7 +2,7 @@
 # FROM ubuntu:18.04
 # FROM rapidsai/rapidsai-core:22.08-cuda11.2-runtime-ubuntu18.04-py3.9
 # cuda 11.7 + cudnn8.1 + ubuntu22.04(python3.10)
-FROM nvidia/cuda:11.7.0-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND noninteractive
 RUN mkdir /dev_env
 WORKDIR /dev_env
